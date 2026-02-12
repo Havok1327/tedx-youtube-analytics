@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -12,6 +12,15 @@ const navItems = [
 
 export function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  if (pathname === "/login") return null;
+
+  const handleLogout = async () => {
+    await fetch("/api/auth", { method: "DELETE" });
+    router.push("/login");
+    router.refresh();
+  };
 
   return (
     <header className="border-b bg-background sticky top-0 z-50">
@@ -20,7 +29,7 @@ export function Nav() {
           <span className="text-red-600">TEDx</span>
           <span>StLouis Analytics</span>
         </Link>
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-1 flex-1">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -36,6 +45,12 @@ export function Nav() {
             </Link>
           ))}
         </nav>
+        <button
+          onClick={handleLogout}
+          className="px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+        >
+          Logout
+        </button>
       </div>
     </header>
   );
