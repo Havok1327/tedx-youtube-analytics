@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Event {
   id: number;
@@ -28,11 +35,19 @@ export default function ManagePage() {
   // New event form
   const [newEventName, setNewEventName] = useState("");
   const [addingEvent, setAddingEvent] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editingEventName, setEditingEventName] = useState("");
+  const [eventSpeakers, setEventSpeakers] = useState<{ id: number; firstName: string; lastName: string; videos: string[] }[]>([]);
+  const [loadingEventSpeakers, setLoadingEventSpeakers] = useState(false);
 
   // New speaker form
   const [newFirstName, setNewFirstName] = useState("");
   const [newLastName, setNewLastName] = useState("");
   const [addingSpeaker, setAddingSpeaker] = useState(false);
+  const [editingSpeaker, setEditingSpeaker] = useState<Speaker | null>(null);
+  const [editingSpeakerFirst, setEditingSpeakerFirst] = useState("");
+  const [editingSpeakerLast, setEditingSpeakerLast] = useState("");
+  const [speakerSearch, setSpeakerSearch] = useState("");
 
   // Refresh
   const [refreshing, setRefreshing] = useState(false);
@@ -70,6 +85,38 @@ export default function ManagePage() {
     }
   };
 
+  const handleEditEvent = async () => {
+    if (!editingEvent || !editingEventName.trim()) return;
+    try {
+      const res = await fetch(`/api/events/${editingEvent.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editingEventName }),
+      });
+      if (res.ok) {
+        setEditingEvent(null);
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Failed to update event:", error);
+    }
+  };
+
+  const handleDeleteEvent = async (id: number, name: string) => {
+    if (!confirm(`Delete event "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/events/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchData();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete event");
+      }
+    } catch (error) {
+      console.error("Failed to delete event:", error);
+    }
+  };
+
   const handleAddSpeaker = async () => {
     if (!newLastName.trim()) return;
     setAddingSpeaker(true);
@@ -86,6 +133,38 @@ export default function ManagePage() {
       }
     } finally {
       setAddingSpeaker(false);
+    }
+  };
+
+  const handleEditSpeaker = async () => {
+    if (!editingSpeaker || !editingSpeakerLast.trim()) return;
+    try {
+      const res = await fetch(`/api/speakers/${editingSpeaker.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName: editingSpeakerFirst, lastName: editingSpeakerLast }),
+      });
+      if (res.ok) {
+        setEditingSpeaker(null);
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Failed to update speaker:", error);
+    }
+  };
+
+  const handleDeleteSpeaker = async (id: number, name: string) => {
+    if (!confirm(`Delete speaker "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/speakers/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchData();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete speaker");
+      }
+    } catch (error) {
+      console.error("Failed to delete speaker:", error);
     }
   };
 
@@ -174,16 +253,91 @@ export default function ManagePage() {
           </div>
           <div className="flex flex-wrap gap-2">
             {events.map((e) => (
-              <span
+              <button
                 key={e.id}
-                className="px-3 py-1 text-sm rounded-full bg-accent text-accent-foreground"
+                type="button"
+                onClick={async () => {
+                  setEditingEvent(e);
+                  setEditingEventName(e.name);
+                  setLoadingEventSpeakers(true);
+                  setEventSpeakers([]);
+                  try {
+                    const res = await fetch(`/api/events/${e.id}`);
+                    if (res.ok) {
+                      const data = await res.json();
+                      setEventSpeakers(data.speakers || []);
+                    }
+                  } finally {
+                    setLoadingEventSpeakers(false);
+                  }
+                }}
+                className="px-3 py-1 text-sm rounded-full bg-accent text-accent-foreground hover:bg-accent/70 transition-colors cursor-pointer"
               >
                 {e.name}
-              </span>
+              </button>
             ))}
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Event Dialog */}
+      {editingEvent && (
+        <Dialog open onOpenChange={(open) => { if (!open) setEditingEvent(null); }}>
+          <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="sm:!max-w-2xl overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>Edit Event</DialogTitle>
+              <DialogDescription>Update the event name or remove it.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label>Event Name</Label>
+                <Input
+                  value={editingEventName}
+                  onChange={(e) => setEditingEventName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleEditEvent(); }}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Speakers ({eventSpeakers.length})</Label>
+                {loadingEventSpeakers ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : eventSpeakers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No speakers linked to this event</p>
+                ) : (
+                  <div className="max-h-[200px] overflow-y-auto rounded-md border p-2 space-y-2 min-w-0">
+                    {eventSpeakers.map((s) => (
+                      <div key={s.id} className="text-sm min-w-0">
+                        <span className="font-medium">{s.firstName} {s.lastName}</span>
+                        {s.videos.length > 0 && (
+                          <p className="text-xs text-muted-foreground truncate max-w-full">
+                            {s.videos.join("; ")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-between">
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    handleDeleteEvent(editingEvent.id, editingEvent.name);
+                    setEditingEvent(null);
+                  }}
+                >
+                  Delete
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="ghost" onClick={() => setEditingEvent(null)}>Cancel</Button>
+                  <Button onClick={handleEditEvent} disabled={!editingEventName.trim()}>Save</Button>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Separator />
 
@@ -210,15 +364,82 @@ export default function ManagePage() {
               Add Speaker
             </Button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1">
-            {speakers.map((s) => (
-              <span key={s.id} className="text-sm px-2 py-1">
-                {s.firstName} {s.lastName}
-              </span>
-            ))}
+          <Input
+            placeholder="Search speakers..."
+            value={speakerSearch}
+            onChange={(e) => setSpeakerSearch(e.target.value)}
+            className="max-w-xs"
+          />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1 max-h-[300px] overflow-y-auto">
+            {speakers
+              .filter((s) => {
+                if (!speakerSearch.trim()) return true;
+                const q = speakerSearch.toLowerCase();
+                return s.firstName.toLowerCase().includes(q) || s.lastName.toLowerCase().includes(q);
+              })
+              .map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setEditingSpeaker(s);
+                    setEditingSpeakerFirst(s.firstName);
+                    setEditingSpeakerLast(s.lastName);
+                  }}
+                  className="text-sm px-2 py-1.5 text-left rounded-md hover:bg-accent transition-colors truncate"
+                >
+                  {s.firstName} {s.lastName}
+                </button>
+              ))}
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Speaker Dialog */}
+      {editingSpeaker && (
+        <Dialog open onOpenChange={(open) => { if (!open) setEditingSpeaker(null); }}>
+          <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>Edit Speaker</DialogTitle>
+              <DialogDescription>Update the speaker&apos;s name or remove them.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label>First Name</Label>
+                <Input
+                  value={editingSpeakerFirst}
+                  onChange={(e) => setEditingSpeakerFirst(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Last Name</Label>
+                <Input
+                  value={editingSpeakerLast}
+                  onChange={(e) => setEditingSpeakerLast(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleEditSpeaker(); }}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="flex justify-between">
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    handleDeleteSpeaker(editingSpeaker.id, `${editingSpeaker.firstName} ${editingSpeaker.lastName}`);
+                    setEditingSpeaker(null);
+                  }}
+                >
+                  Delete
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="ghost" onClick={() => setEditingSpeaker(null)}>Cancel</Button>
+                  <Button onClick={handleEditSpeaker} disabled={!editingSpeakerLast.trim()}>Save</Button>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
