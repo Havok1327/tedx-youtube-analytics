@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CsvImport } from "@/components/csv-import";
 import { VideoForm } from "@/components/video-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -338,10 +337,10 @@ export default function ManagePage() {
         </CardContent>
       </Card>
 
+      {/* CSV Import hidden — no longer needed
       <Separator />
-
-      {/* CSV Import */}
       <CsvImport />
+      */}
 
       <Separator />
 
