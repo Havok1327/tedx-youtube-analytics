@@ -166,13 +166,16 @@ export default function VideoDetailPage() {
     .map((s) => `${s.firstName} ${s.lastName}`.trim())
     .join(", ") || "Unknown Speaker";
 
-  const historyData = video.history.map((h) => ({
-    ...h,
-    displayDate: new Date(h.recordedAt).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    }),
-  }));
+  const historyData = [...video.history]
+    .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+    .map((h) => ({
+      ...h,
+      displayDate: new Date(h.recordedAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "2-digit",
+      }),
+    }));
 
   return (
     <div className="space-y-6">
