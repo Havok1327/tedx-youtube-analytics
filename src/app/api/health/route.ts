@@ -13,6 +13,9 @@ export async function GET() {
     convertedPrefix: url.substring(0, 30) + "...",
     hasToken: !!authToken,
     tokenLength: authToken.length,
+    tokenStart: authToken.substring(0, 20),
+    tokenEnd: authToken.substring(authToken.length - 10),
+    urlFull: rawUrl,
   };
 
   try {
