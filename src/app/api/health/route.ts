@@ -1,35 +1,31 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { events } from "@/db/schema";
-import { sql } from "drizzle-orm";
+import { createClient } from "@libsql/client";
 
 export async function GET() {
-  const tests: Record<string, string> = {};
+  const rawUrl = process.env.TURSO_DATABASE_URL || "";
+  const url = rawUrl.startsWith("libsql://")
+    ? rawUrl.replace("libsql://", "https://")
+    : rawUrl;
+  const authToken = process.env.TURSO_AUTH_TOKEN || "";
+
+  const info: Record<string, unknown> = {
+    urlPrefix: rawUrl.substring(0, 30) + "...",
+    convertedPrefix: url.substring(0, 30) + "...",
+    hasToken: !!authToken,
+    tokenLength: authToken.length,
+  };
 
   try {
-    await db.run(sql`SELECT 1 as ok`);
-    tests.ping = "ok";
-  } catch (error) {
-    tests.ping = String(error);
+    const client = createClient({ url, authToken });
+    const result = await client.execute("SELECT 1 as ok");
+    info.rawClient = "ok";
+    info.result = result;
+  } catch (error: unknown) {
+    info.rawClient = "failed";
+    info.errorName = error instanceof Error ? error.constructor.name : typeof error;
+    info.errorMessage = String(error);
+    info.errorStack = error instanceof Error ? error.stack?.split("\n").slice(0, 5) : undefined;
   }
 
-  try {
-    const rows = await db.select().from(events).all();
-    tests.selectEvents = `ok (${rows.length} rows)`;
-  } catch (error) {
-    tests.selectEvents = String(error);
-  }
-
-  try {
-    const tables = await db.run(sql`SELECT name FROM sqlite_master WHERE type='table'`);
-    tests.tables = JSON.stringify(tables);
-  } catch (error) {
-    tests.tables = String(error);
-  }
-
-  const hasError = Object.values(tests).some((v) => !v.startsWith("ok"));
-  return NextResponse.json(
-    { status: hasError ? "partial" : "ok", tests, env: { hasTursoUrl: !!process.env.TURSO_DATABASE_URL, hasTursoToken: !!process.env.TURSO_AUTH_TOKEN } },
-    { status: hasError ? 500 : 200 }
-  );
+  return NextResponse.json(info);
 }
