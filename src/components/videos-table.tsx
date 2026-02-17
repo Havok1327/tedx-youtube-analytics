@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -120,6 +121,36 @@ export function VideosTable({ videos, events }: VideosTableProps) {
   const speakerNames = (v: Video) =>
     v.speakers.map((s) => `${s.firstName} ${s.lastName}`.trim()).join(", ") || "Unknown";
 
+  const exportCsv = useCallback(() => {
+    const escapeField = (val: string) => {
+      if (val.includes(",") || val.includes('"') || val.includes("\n")) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+
+    const headers = ["Speaker(s)", "Event", "Title", "Views", "Likes", "Views/Day", "Published", "YouTube URL"];
+    const rows = filtered.map((v) => [
+      escapeField(speakerNames(v)),
+      escapeField(v.eventName || ""),
+      escapeField(v.title || "Untitled"),
+      (v.views || 0).toString(),
+      (v.likes || 0).toString(),
+      v.viewsPerDay?.toFixed(1) || "",
+      v.publishedAt ? new Date(v.publishedAt).toLocaleDateString() : "",
+      v.url || `https://www.youtube.com/watch?v=${v.youtubeId}`,
+    ]);
+
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tedx-videos-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filtered]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-3">
@@ -145,6 +176,9 @@ export function VideosTable({ videos, events }: VideosTableProps) {
         <span className="text-sm text-muted-foreground self-center">
           {filtered.length} video{filtered.length !== 1 ? "s" : ""}
         </span>
+        <Button variant="outline" size="sm" onClick={exportCsv} className="sm:ml-auto">
+          Export CSV
+        </Button>
       </div>
 
       <div className="rounded-md border overflow-auto">

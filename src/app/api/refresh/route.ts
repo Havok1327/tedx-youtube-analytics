@@ -1,10 +1,27 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { videos, statsHistory } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { fetchMultipleVideos } from "@/lib/youtube";
 
+// GET handler for Vercel cron jobs (authenticated via CRON_SECRET in middleware)
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  return refreshAllVideos();
+}
+
+// POST handler for manual refresh from the UI (authenticated via session cookie in middleware)
 export async function POST() {
+  return refreshAllVideos();
+}
+
+async function refreshAllVideos() {
   try {
     const allVideos = await db.select().from(videos).all();
     const youtubeIds = allVideos
