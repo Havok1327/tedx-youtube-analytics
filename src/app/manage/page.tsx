@@ -223,6 +223,9 @@ export default function ManagePage() {
           <p className="text-sm text-muted-foreground">
             Fetch latest view counts and likes from YouTube for all videos. This also creates a new history snapshot.
           </p>
+          <p className="text-sm text-muted-foreground">
+            Stats also refresh automatically every Monday at 8:00 AM UTC via a scheduled job.
+          </p>
           <div className="flex items-center gap-3">
             <Button onClick={handleRefresh} disabled={refreshing}>
               {refreshing ? "Refreshing..." : "Refresh All Stats"}
