@@ -6,7 +6,7 @@ export async function GET() {
   const url = rawUrl.startsWith("libsql://")
     ? rawUrl.replace("libsql://", "https://")
     : rawUrl;
-  const authToken = process.env.TURSO_AUTH_TOKEN || "";
+  const authToken = (process.env.TURSO_AUTH_TOKEN || "").trim();
 
   const info: Record<string, unknown> = {
     urlPrefix: rawUrl.substring(0, 30) + "...",

@@ -10,7 +10,7 @@ const url = rawUrl.startsWith("libsql://")
 
 const client = createClient({
   url,
-  authToken: process.env.TURSO_AUTH_TOKEN,
+  authToken: process.env.TURSO_AUTH_TOKEN?.trim(),
 });
 
 export const db = drizzle(client, { schema });
