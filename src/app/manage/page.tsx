@@ -54,13 +54,27 @@ export default function ManagePage() {
   const [refreshResult, setRefreshResult] = useState<string | null>(null);
 
   const fetchData = async () => {
-    const [evts, spks] = await Promise.all([
-      fetch("/api/events").then((r) => r.json()),
-      fetch("/api/speakers").then((r) => r.json()),
-    ]);
-    setEvents(evts);
-    setSpeakers(spks);
-    setLoading(false);
+    try {
+      const [evtsRes, spksRes] = await Promise.all([
+        fetch("/api/events"),
+        fetch("/api/speakers"),
+      ]);
+      if (!evtsRes.ok || !spksRes.ok) {
+        console.error("API error:", evtsRes.status, spksRes.status);
+        setEvents([]);
+        setSpeakers([]);
+        return;
+      }
+      const [evts, spks] = await Promise.all([evtsRes.json(), spksRes.json()]);
+      setEvents(Array.isArray(evts) ? evts : []);
+      setSpeakers(Array.isArray(spks) ? spks : []);
+    } catch (err) {
+      console.error("Failed to fetch data:", err);
+      setEvents([]);
+      setSpeakers([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
