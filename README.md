@@ -22,7 +22,7 @@ GitHub (push to master)
         --> YouTube Data API (fetches video stats on refresh)
 ```
 
-You deploy by pushing to `master`. Vercel detects the push, builds the Next.js app, and serves it as serverless functions. Every page request queries Turso over HTTP. Video stats come from YouTube's API when you trigger a manual or scheduled refresh.
+You deploy by pushing to `master`. Vercel detects the push, builds the Next.js app, and serves it as serverless functions. Every page request queries Turso over HTTPS. Video stats come from YouTube's API when you trigger a manual or scheduled refresh.
 
 ## Environment Variables
 
