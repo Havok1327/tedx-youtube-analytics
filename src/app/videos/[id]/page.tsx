@@ -1,11 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   LineChart,
   Line,
@@ -25,6 +40,7 @@ interface VideoDetail {
   views: number | null;
   likes: number | null;
   lastUpdated: string | null;
+  eventId: number | null;
   eventName: string | null;
   speakers: { id: number; firstName: string; lastName: string }[];
   history: { id: number; views: number; likes: number; recordedAt: string }[];
@@ -32,19 +48,120 @@ interface VideoDetail {
   viewsPerDay: number | null;
 }
 
+interface EventOption {
+  id: number;
+  name: string;
+}
+
+interface SpeakerOption {
+  id: number;
+  firstName: string;
+  lastName: string;
+}
+
 export default function VideoDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const [video, setVideo] = useState<VideoDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  // Edit dialog state
+  const [editOpen, setEditOpen] = useState(false);
+  const [events, setEvents] = useState<EventOption[]>([]);
+  const [allSpeakers, setAllSpeakers] = useState<SpeakerOption[]>([]);
+  const [editEventId, setEditEventId] = useState<string>("");
+  const [editSpeakerIds, setEditSpeakerIds] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const fetchVideo = () => {
     if (params.id) {
       fetch(`/api/videos/${params.id}`)
-        .then((r) => r.json())
+        .then((r) => {
+          if (!r.ok) throw new Error("Failed to fetch");
+          return r.json();
+        })
         .then(setVideo)
+        .catch(() => setVideo(null))
         .finally(() => setLoading(false));
     }
+  };
+
+  useEffect(() => {
+    fetchVideo();
   }, [params.id]);
+
+  const openEditDialog = async () => {
+    setEditError(null);
+    setEditEventId(video?.eventId?.toString() || "");
+    setEditSpeakerIds(video?.speakers.map((s) => s.id.toString()) || []);
+    setEditOpen(true);
+
+    try {
+      const [evtsRes, spksRes] = await Promise.all([
+        fetch("/api/events"),
+        fetch("/api/speakers"),
+      ]);
+      if (evtsRes.ok) setEvents(await evtsRes.json());
+      if (spksRes.ok) setAllSpeakers(await spksRes.json());
+    } catch {
+      setEditError("Failed to load events/speakers");
+    }
+  };
+
+  const toggleSpeaker = (id: string) => {
+    setEditSpeakerIds((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+    );
+  };
+
+  const handleSave = async () => {
+    if (!video) return;
+    setSaving(true);
+    setEditError(null);
+
+    try {
+      const res = await fetch(`/api/videos/${video.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: editEventId && editEventId !== "none" ? parseInt(editEventId) : null,
+          speakerIds: editSpeakerIds.map((s) => parseInt(s)),
+        }),
+      });
+      if (res.ok) {
+        setEditOpen(false);
+        fetchVideo();
+      } else {
+        const data = await res.json();
+        setEditError(data.error || "Save failed");
+      }
+    } catch {
+      setEditError("Failed to save changes");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!video || !confirm(`Delete "${video.title || "this video"}"? This cannot be undone.`)) return;
+    setDeleting(true);
+
+    try {
+      const res = await fetch(`/api/videos/${video.id}`, { method: "DELETE" });
+      if (res.ok) {
+        router.push("/videos");
+      } else {
+        const data = await res.json();
+        setEditError(data.error || "Delete failed");
+      }
+    } catch {
+      setEditError("Failed to delete video");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -88,7 +205,12 @@ export default function VideoDetailPage() {
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold">{video.title || "Untitled Video"}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold">{video.title || "Untitled Video"}</h1>
+          <Button variant="outline" size="sm" onClick={openEditDialog}>
+            Edit
+          </Button>
+        </div>
         <div className="flex items-center gap-2 mt-1">
           <span className="text-muted-foreground">{speakerNames}</span>
           {video.eventName && (
@@ -214,6 +336,75 @@ export default function VideoDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Edit Video</DialogTitle>
+            <DialogDescription>Change event assignment and speaker associations.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Event</Label>
+              <Select value={editEventId} onValueChange={setEditEventId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select event..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No event</SelectItem>
+                  {events.map((e) => (
+                    <SelectItem key={e.id} value={e.id.toString()}>
+                      {e.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Speaker(s)</Label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {allSpeakers.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => toggleSpeaker(s.id.toString())}
+                    className={`px-2 py-1 text-xs rounded-md border transition-colors ${
+                      editSpeakerIds.includes(s.id.toString())
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background hover:bg-accent border-border"
+                    }`}
+                  >
+                    {s.firstName} {s.lastName}
+                  </button>
+                ))}
+                {allSpeakers.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Loading speakers...</p>
+                )}
+              </div>
+            </div>
+
+            {editError && <p className="text-sm text-destructive">{editError}</p>}
+
+            <div className="flex justify-between">
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setEditOpen(false)}>Cancel</Button>
+                <Button onClick={handleSave} disabled={saving}>
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
