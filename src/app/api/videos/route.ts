@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { videos, events, speakers, videoSpeakers } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const allVideos = await db

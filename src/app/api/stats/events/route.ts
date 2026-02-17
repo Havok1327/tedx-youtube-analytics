@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { events, videos, statsHistory } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const allEvents = await db.select().from(events).all();

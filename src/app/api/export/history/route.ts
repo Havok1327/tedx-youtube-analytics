@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { statsHistory, videos, events, speakers, videoSpeakers } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     // Fetch all history with video info

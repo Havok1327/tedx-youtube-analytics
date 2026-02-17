@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { speakers } from "@/db/schema";
 import { asc } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const allSpeakers = await db

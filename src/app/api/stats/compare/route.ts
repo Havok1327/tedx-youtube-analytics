@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { videos, statsHistory } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const idsParam = request.nextUrl.searchParams.get("ids");
 

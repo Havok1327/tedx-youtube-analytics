@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { speakers, videos, videoSpeakers, statsHistory } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const speakerId = request.nextUrl.searchParams.get("speakerId");
 

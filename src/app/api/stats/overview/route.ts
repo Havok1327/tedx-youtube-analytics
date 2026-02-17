@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { videos, events, statsHistory } from "@/db/schema";
 import { sql, eq, desc } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     // Summary stats
