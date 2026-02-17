@@ -36,7 +36,7 @@ export function CsvImport() {
         if (data.errors?.length) parts.push(`${data.errors.length} errors`);
         setResult(`Imported: ${parts.join(", ")}`);
       } else {
-        setResult(`Error: ${data.error || "Import failed"}`);
+        setResult(`Error: ${data.error || "Import failed"}${data.details ? ` — ${data.details}` : ""}`);
       }
     } catch (error) {
       setResult(`Error: ${error}`);
