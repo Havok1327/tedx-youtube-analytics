@@ -271,7 +271,7 @@ export default function ManagePage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Fetch latest view counts and likes from YouTube for all videos. This also creates a new history snapshot.
+            Fetch latest view counts and likes from YouTube for all videos. This also creates a new history snapshot. Use sparingly — YouTube limits API calls to 10,000 quota units per day.
           </p>
           <div className="flex items-center gap-3">
             <Button onClick={handleRefresh} disabled={refreshing}>

@@ -95,6 +95,7 @@ export default function Dashboard() {
           <Button onClick={handleRefresh} disabled={refreshing} variant="outline">
             {refreshing ? "Refreshing..." : "Refresh All Stats"}
           </Button>
+          <span className="text-xs text-muted-foreground">Use sparingly — YouTube limits API calls per day.</span>
         </div>
       </div>
 
