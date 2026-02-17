@@ -3,8 +3,12 @@ import { db } from "@/db";
 import { videos, statsHistory, events, videoSpeakers, speakers } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
+
     const allHistory = await db.select().from(statsHistory).all();
     const allVideos = await db.select().from(videos).all();
 
@@ -20,11 +24,6 @@ export async function GET() {
       return NextResponse.json({ periods: [], message: "Need at least 2 snapshots for period comparison" });
     }
 
-    const latestDate = dates[0];
-    // Find snapshot ~7 days ago and ~30 days ago
-    const weekAgoTarget = new Date(new Date(latestDate).getTime() - 7 * 86400000).toISOString().split("T")[0];
-    const monthAgoTarget = new Date(new Date(latestDate).getTime() - 30 * 86400000).toISOString().split("T")[0];
-
     const findClosestDate = (target: string) => {
       let closest = dates[dates.length - 1];
       let minDiff = Infinity;
@@ -38,8 +37,13 @@ export async function GET() {
       return closest;
     };
 
-    const weekAgoDate = findClosestDate(weekAgoTarget);
-    const monthAgoDate = findClosestDate(monthAgoTarget);
+    // If custom from/to provided, use those; otherwise default to week/month ago
+    const latestDate = toParam ? findClosestDate(toParam) : dates[0];
+    const weekAgoTarget = new Date(new Date(latestDate).getTime() - 7 * 86400000).toISOString().split("T")[0];
+    const monthAgoTarget = new Date(new Date(latestDate).getTime() - 30 * 86400000).toISOString().split("T")[0];
+
+    const weekAgoDate = fromParam ? findClosestDate(fromParam) : findClosestDate(weekAgoTarget);
+    const monthAgoDate = fromParam ? findClosestDate(fromParam) : findClosestDate(monthAgoTarget);
 
     // Build views by video for each date
     const viewsByDate = new Map<string, Map<number, number>>();

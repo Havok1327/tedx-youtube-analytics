@@ -57,6 +57,54 @@ function InfoTip({ text }: { text: string }) {
   );
 }
 
+// ─── DateRangePicker (shared) ────────────────────────────
+function DateRangePicker({
+  from,
+  to,
+  onChange,
+}: {
+  from: string;
+  to: string;
+  onChange: (from: string, to: string) => void;
+}) {
+  const today = new Date().toISOString().split("T")[0];
+
+  const presets: [string, string, string][] = [
+    ["All Time", "", ""],
+    ["Last 3 Mo", new Date(Date.now() - 90 * 86400000).toISOString().split("T")[0], today],
+    ["Last 6 Mo", new Date(Date.now() - 180 * 86400000).toISOString().split("T")[0], today],
+    ["Last Year", new Date(Date.now() - 365 * 86400000).toISOString().split("T")[0], today],
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {presets.map(([label, f, t]) => (
+        <Button
+          key={label}
+          size="sm"
+          variant={from === f && to === t ? "default" : "outline"}
+          onClick={() => onChange(f, t)}
+        >
+          {label}
+        </Button>
+      ))}
+      <input
+        type="date"
+        value={from}
+        onChange={(e) => onChange(e.target.value, to)}
+        className="h-8 rounded-md border px-2 text-sm"
+      />
+      <span className="text-muted-foreground text-sm">to</span>
+      <input
+        type="date"
+        value={to}
+        onChange={(e) => onChange(from, e.target.value)}
+        className="h-8 rounded-md border px-2 text-sm"
+      />
+    </div>
+  );
+}
+
 const COLORS = [
   "hsl(0, 65%, 50%)", "hsl(220, 65%, 50%)", "hsl(120, 50%, 40%)",
   "hsl(280, 60%, 50%)", "hsl(30, 80%, 50%)", "hsl(180, 60%, 40%)",
@@ -238,6 +286,8 @@ function SpeakerDeepDive() {
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [chartFrom, setChartFrom] = useState("");
+  const [chartTo, setChartTo] = useState("");
 
   useEffect(() => {
     fetch("/api/stats/speakers").then((r) => r.json()).then(setSpeakerList);
@@ -263,10 +313,25 @@ function SpeakerDeepDive() {
     }
   };
 
-  const chartData = speakerData?.chartData.map((d) => ({
-    ...d,
-    displayDate: formatDate(d.date as string),
-  })) || [];
+  const chartData = useMemo(() => {
+    if (!speakerData?.chartData) return [];
+    return speakerData.chartData
+      .filter((d) => {
+        const date = d.date as string;
+        if (chartFrom && date < chartFrom) return false;
+        if (chartTo && date > chartTo) return false;
+        return true;
+      })
+      .map((d) => ({
+        ...d,
+        displayDate: formatDate(d.date as string),
+      }));
+  }, [speakerData, chartFrom, chartTo]);
+
+  const handleChartDateChange = (from: string, to: string) => {
+    setChartFrom(from);
+    setChartTo(to);
+  };
 
   return (
     <div className="space-y-4">
@@ -296,8 +361,9 @@ function SpeakerDeepDive() {
       {speakerData && (
         <>
           <Card>
-            <CardHeader>
+            <CardHeader className="space-y-3">
               <CardTitle>{speakerData.speaker.firstName} {speakerData.speaker.lastName} — View History</CardTitle>
+              <DateRangePicker from={chartFrom} to={chartTo} onChange={handleChartDateChange} />
             </CardHeader>
             <CardContent>
               {chartData.length === 0 ? (
@@ -340,24 +406,39 @@ function SpeakerDeepDive() {
 
 // ─── Video Comparison ───────────────────────────────────
 function VideoComparison() {
-  const [allVideos, setAllVideos] = useState<{ id: number; title: string; views: number; speakers: { firstName: string; lastName: string }[] }[]>([]);
+  const [allVideos, setAllVideos] = useState<{ id: number; title: string; views: number; eventName: string | null; speakers: { firstName: string; lastName: string }[] }[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [compData, setCompData] = useState<{ chartData: Record<string, string | number>[]; videoNames: string[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [eventFilter, setEventFilter] = useState<string>("all");
 
   useEffect(() => {
     fetch("/api/videos").then((r) => r.json()).then(setAllVideos);
   }, []);
 
+  const eventNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const v of allVideos) {
+      if (v.eventName) names.add(v.eventName);
+    }
+    return Array.from(names).sort();
+  }, [allVideos]);
+
   const filteredVideos = useMemo(() => {
-    if (!search.trim()) return allVideos.slice(0, 50);
-    const q = search.toLowerCase();
-    return allVideos.filter((v) =>
-      (v.title || "").toLowerCase().includes(q) ||
-      v.speakers?.some((s) => `${s.firstName} ${s.lastName}`.toLowerCase().includes(q))
-    ).slice(0, 50);
-  }, [allVideos, search]);
+    let vids = allVideos;
+    if (eventFilter !== "all") {
+      vids = vids.filter((v) => v.eventName === eventFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      vids = vids.filter((v) =>
+        (v.title || "").toLowerCase().includes(q) ||
+        v.speakers?.some((s) => `${s.firstName} ${s.lastName}`.toLowerCase().includes(q))
+      );
+    }
+    return vids.slice(0, 50);
+  }, [allVideos, search, eventFilter]);
 
   const toggleVideo = (id: number) => {
     setSelected((prev) =>
@@ -390,7 +471,20 @@ function VideoComparison() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">Select 2-5 videos to overlay their view growth.</p>
-          <Input placeholder="Search videos..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
+          <div className="flex gap-2 items-center">
+            <Input placeholder="Search videos..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
+            <Select value={eventFilter} onValueChange={setEventFilter}>
+              <SelectTrigger className="max-w-[200px]">
+                <SelectValue placeholder="All Events" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Events</SelectItem>
+                {eventNames.map((name) => (
+                  <SelectItem key={name} value={name}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="max-h-[250px] overflow-y-auto border rounded-md p-2 space-y-1">
             {filteredVideos.map((v) => (
               <button
@@ -455,10 +549,30 @@ function PeriodReports() {
   const [data, setData] = useState<{ latestDate: string; weekAgoDate: string; monthAgoDate: string; videos: PeriodVideo[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<"weekGain" | "monthGain" | "weekGainPct" | "monthGainPct">("weekGain");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const fetchData = useCallback((from: string, to: string) => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const qs = params.toString();
+    fetch(`/api/stats/period${qs ? `?${qs}` : ""}`)
+      .then((r) => { if (!r.ok) throw new Error("Failed"); return r.json(); })
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
-    fetch("/api/stats/period").then((r) => r.json()).then(setData).finally(() => setLoading(false));
-  }, []);
+    fetchData(dateFrom, dateTo);
+  }, [dateFrom, dateTo, fetchData]);
+
+  const handleDateChange = (from: string, to: string) => {
+    setDateFrom(from);
+    setDateTo(to);
+  };
 
   if (loading) return <p className="text-muted-foreground py-8 text-center">Loading period reports...</p>;
   if (!data || data.videos.length === 0) return <p className="text-muted-foreground py-8 text-center">Not enough history data for period comparison</p>;
@@ -471,7 +585,7 @@ function PeriodReports() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="space-y-3">
         <div className="flex items-center justify-between">
           <CardTitle>Period Report<InfoTip text="Shows view gains for each video over the past week and month. Sort by absolute gains or percentage growth to find trending and rising videos." /></CardTitle>
           <div className="flex gap-2 text-xs text-muted-foreground">
@@ -480,6 +594,7 @@ function PeriodReports() {
             <span>vs Month: {formatDate(data.monthAgoDate)}</span>
           </div>
         </div>
+        <DateRangePicker from={dateFrom} to={dateTo} onChange={handleDateChange} />
       </CardHeader>
       <CardContent>
         <div className="flex gap-2 mb-4">

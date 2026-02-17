@@ -188,17 +188,15 @@ export default function VideoDetailPage() {
       </div>
 
       <div>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold">{video.title || "Untitled Video"}</h1>
-          <Button variant="outline" size="sm" onClick={openEditDialog}>
-            Edit
-          </Button>
-        </div>
+        <h1 className="text-2xl font-bold">{video.title || "Untitled Video"}</h1>
         <div className="flex items-center gap-2 mt-1">
           <span className="text-muted-foreground">{speakerNames}</span>
           {video.eventName && (
             <Badge variant="secondary">{video.eventName}</Badge>
           )}
+          <Button variant="outline" size="sm" onClick={openEditDialog}>
+            Edit
+          </Button>
         </div>
       </div>
 
