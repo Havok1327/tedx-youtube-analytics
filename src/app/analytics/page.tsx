@@ -60,7 +60,7 @@ function EventTrends() {
   }, []);
 
   if (loading) return <p className="text-muted-foreground py-8 text-center">Loading event trends...</p>;
-  if (!data || data.chartData.length === 0) return <p className="text-muted-foreground py-8 text-center">No history data available</p>;
+  if (!data || data.chartData.length === 0) return <p className="text-muted-foreground py-8 text-center">No trend data yet. This chart builds up over time as the weekly refresh creates snapshots. Run a manual refresh to add a data point.</p>;
 
   const chartData = data.chartData.map((d) => ({ ...d, displayDate: formatDate(d.date as string) }));
 
@@ -82,6 +82,120 @@ function EventTrends() {
             ))}
           </LineChart>
         </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Event Scorecard ────────────────────────────────────
+interface EventScore {
+  name: string;
+  videoCount: number;
+  totalViews: number;
+  totalLikes: number;
+  avgViews: number;
+  avgEngagement: number;
+  bestVideo: string;
+  bestVideoViews: number;
+}
+
+function EventScorecard() {
+  const [data, setData] = useState<EventScore[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<"totalViews" | "videoCount" | "avgViews" | "avgEngagement">("totalViews");
+
+  useEffect(() => {
+    fetch("/api/videos")
+      .then((r) => r.json())
+      .then((videos: { views: number | null; likes: number | null; title: string | null; eventName: string | null }[]) => {
+        const eventMap = new Map<string, { videoCount: number; totalViews: number; totalLikes: number; bestVideo: string; bestVideoViews: number }>();
+
+        for (const v of videos) {
+          const name = v.eventName || "Unassigned";
+          const views = v.views || 0;
+          const likes = v.likes || 0;
+          const existing = eventMap.get(name) || { videoCount: 0, totalViews: 0, totalLikes: 0, bestVideo: "", bestVideoViews: 0 };
+          existing.videoCount++;
+          existing.totalViews += views;
+          existing.totalLikes += likes;
+          if (views > existing.bestVideoViews) {
+            existing.bestVideoViews = views;
+            existing.bestVideo = v.title || "Untitled";
+          }
+          eventMap.set(name, existing);
+        }
+
+        const result: EventScore[] = Array.from(eventMap.entries()).map(([name, stats]) => ({
+          name,
+          videoCount: stats.videoCount,
+          totalViews: stats.totalViews,
+          totalLikes: stats.totalLikes,
+          avgViews: Math.round(stats.totalViews / stats.videoCount),
+          avgEngagement: stats.totalViews > 0 ? Math.round((stats.totalLikes / stats.totalViews) * 1000) / 10 : 0,
+          bestVideo: stats.bestVideo,
+          bestVideoViews: stats.bestVideoViews,
+        }));
+
+        setData(result);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p className="text-muted-foreground py-8 text-center">Loading event scorecard...</p>;
+  if (data.length === 0) return <p className="text-muted-foreground py-8 text-center">No event data available</p>;
+
+  const sorted = [...data].sort((a, b) => b[sortBy] - a[sortBy]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Event Scorecard</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-2 mb-4">
+          {(
+            [
+              ["totalViews", "Total Views"],
+              ["avgViews", "Avg Views/Video"],
+              ["videoCount", "Video Count"],
+              ["avgEngagement", "Engagement %"],
+            ] as const
+          ).map(([key, label]) => (
+            <Button key={key} size="sm" variant={sortBy === key ? "default" : "outline"} onClick={() => setSortBy(key)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+        <div className="rounded-md border overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Event</TableHead>
+                <TableHead className="text-right">Videos</TableHead>
+                <TableHead className="text-right">Total Views</TableHead>
+                <TableHead className="text-right">Total Likes</TableHead>
+                <TableHead className="text-right">Avg Views/Video</TableHead>
+                <TableHead className="text-right">Eng %</TableHead>
+                <TableHead className="max-w-[200px]">Best Performer</TableHead>
+                <TableHead className="text-right">Its Views</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sorted.map((e) => (
+                <TableRow key={e.name}>
+                  <TableCell className="font-medium">{e.name}</TableCell>
+                  <TableCell className="text-right">{e.videoCount}</TableCell>
+                  <TableCell className="text-right">{e.totalViews.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{e.totalLikes.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{e.avgViews.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{e.avgEngagement}%</TableCell>
+                  <TableCell className="text-sm max-w-[200px] truncate text-muted-foreground">{e.bestVideo}</TableCell>
+                  <TableCell className="text-right">{e.bestVideoViews.toLocaleString()}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
@@ -637,17 +751,18 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Analytics</h1>
-      <Tabs defaultValue="events">
+      <Tabs defaultValue="scorecard">
         <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="events">Event Trends</TabsTrigger>
+          <TabsTrigger value="scorecard">Event Scorecard</TabsTrigger>
           <TabsTrigger value="leaderboard">Speaker Leaderboard</TabsTrigger>
           <TabsTrigger value="speakers">Speaker Deep Dive</TabsTrigger>
           <TabsTrigger value="compare">Compare Videos</TabsTrigger>
           <TabsTrigger value="periods">Period Reports</TabsTrigger>
           <TabsTrigger value="yearly">Views by Year</TabsTrigger>
+          <TabsTrigger value="events">Event Trends</TabsTrigger>
         </TabsList>
-        <TabsContent value="events" className="mt-4">
-          <EventTrends />
+        <TabsContent value="scorecard" className="mt-4">
+          <EventScorecard />
         </TabsContent>
         <TabsContent value="leaderboard" className="mt-4">
           <SpeakerLeaderboard />
@@ -663,6 +778,9 @@ export default function AnalyticsPage() {
         </TabsContent>
         <TabsContent value="yearly" className="mt-4">
           <ViewsByYear />
+        </TabsContent>
+        <TabsContent value="events" className="mt-4">
+          <EventTrends />
         </TabsContent>
       </Tabs>
     </div>
