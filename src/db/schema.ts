@@ -36,6 +36,11 @@ export const videoSpeakers = sqliteTable(
   (table) => [primaryKey({ columns: [table.videoId, table.speakerId] })]
 );
 
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 export const statsHistory = sqliteTable("stats_history", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   videoId: integer("video_id")

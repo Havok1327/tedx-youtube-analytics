@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { videos, statsHistory } from "@/db/schema";
+import { videos, statsHistory, appSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { fetchMultipleVideos } from "@/lib/youtube";
+
+async function saveSetting(key: string, value: string) {
+  await db
+    .insert(appSettings)
+    .values({ key, value })
+    .onConflictDoUpdate({ target: appSettings.key, set: { value } });
+}
 
 // GET handler for Vercel cron jobs (authenticated via CRON_SECRET in middleware)
 export async function GET(request: NextRequest) {
@@ -13,15 +20,26 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return refreshAllVideos();
+  // Check if cron is enabled
+  const setting = await db
+    .select()
+    .from(appSettings)
+    .where(eq(appSettings.key, "cron_enabled"))
+    .get();
+
+  if (setting?.value === "false") {
+    return NextResponse.json({ skipped: true, reason: "Cron is disabled" });
+  }
+
+  return refreshAllVideos("cron");
 }
 
 // POST handler for manual refresh from the UI (authenticated via session cookie in middleware)
 export async function POST() {
-  return refreshAllVideos();
+  return refreshAllVideos("manual");
 }
 
-async function refreshAllVideos() {
+async function refreshAllVideos(trigger: "cron" | "manual") {
   try {
     const allVideos = await db.select().from(videos).all();
     const youtubeIds = allVideos
@@ -62,6 +80,13 @@ async function refreshAllVideos() {
       }
     }
 
+    // Log the run
+    await saveSetting("last_refresh_at", now);
+    await saveSetting(
+      "last_refresh_result",
+      JSON.stringify({ trigger, updated, total: allVideos.length, historyAdded, errorCount: errors.length })
+    );
+
     return NextResponse.json({
       total: allVideos.length,
       updated,
@@ -70,6 +95,14 @@ async function refreshAllVideos() {
     });
   } catch (error) {
     console.error("Refresh error:", error);
+
+    // Log the failure
+    await saveSetting("last_refresh_at", new Date().toISOString());
+    await saveSetting(
+      "last_refresh_result",
+      JSON.stringify({ trigger, error: String(error) })
+    );
+
     return NextResponse.json({ error: "Refresh failed", details: String(error) }, { status: 500 });
   }
 }

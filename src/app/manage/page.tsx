@@ -53,6 +53,55 @@ export default function ManagePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshResult, setRefreshResult] = useState<string | null>(null);
 
+  // Cron status
+  const [cronEnabled, setCronEnabled] = useState(true);
+  const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null);
+  const [lastRefreshInfo, setLastRefreshInfo] = useState<string | null>(null);
+  const [togglingCron, setTogglingCron] = useState(false);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch("/api/settings");
+      if (!res.ok) return;
+      const settings = await res.json();
+      if (settings.cron_enabled !== undefined) {
+        setCronEnabled(settings.cron_enabled !== "false");
+      }
+      if (settings.last_refresh_at) {
+        setLastRefreshAt(settings.last_refresh_at);
+      }
+      if (settings.last_refresh_result) {
+        try {
+          const info = JSON.parse(settings.last_refresh_result);
+          if (info.error) {
+            setLastRefreshInfo(`Failed (${info.trigger}): ${info.error}`);
+          } else {
+            setLastRefreshInfo(`${info.trigger === "cron" ? "Auto" : "Manual"}: updated ${info.updated}/${info.total} videos, ${info.historyAdded} history entries${info.errorCount ? `, ${info.errorCount} errors` : ""}`);
+          }
+        } catch {
+          setLastRefreshInfo(null);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const toggleCron = async () => {
+    setTogglingCron(true);
+    const newValue = !cronEnabled;
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "cron_enabled", value: newValue ? "true" : "false" }),
+      });
+      if (res.ok) setCronEnabled(newValue);
+    } finally {
+      setTogglingCron(false);
+    }
+  };
+
   const fetchData = async () => {
     try {
       const [evtsRes, spksRes] = await Promise.all([
@@ -79,6 +128,7 @@ export default function ManagePage() {
 
   useEffect(() => {
     fetchData();
+    fetchSettings();
   }, []);
 
   const handleAddEvent = async () => {
@@ -199,6 +249,7 @@ export default function ManagePage() {
       setRefreshResult(`Error: ${error}`);
     } finally {
       setRefreshing(false);
+      fetchSettings();
     }
   };
 
@@ -219,12 +270,9 @@ export default function ManagePage() {
         <CardHeader>
           <CardTitle>Refresh YouTube Stats</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
             Fetch latest view counts and likes from YouTube for all videos. This also creates a new history snapshot.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Stats also refresh automatically every Monday at 8:00 AM UTC via a scheduled job.
           </p>
           <div className="flex items-center gap-3">
             <Button onClick={handleRefresh} disabled={refreshing}>
@@ -234,6 +282,35 @@ export default function ManagePage() {
               <span className={`text-sm ${refreshResult.startsWith("Error") ? "text-destructive" : "text-green-600"}`}>
                 {refreshResult}
               </span>
+            )}
+          </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Scheduled Auto-Refresh</p>
+                <p className="text-xs text-muted-foreground">Runs every Monday at 8:00 AM UTC</p>
+              </div>
+              <Button
+                variant={cronEnabled ? "default" : "outline"}
+                size="sm"
+                onClick={toggleCron}
+                disabled={togglingCron}
+              >
+                {togglingCron ? "..." : cronEnabled ? "Enabled" : "Disabled"}
+              </Button>
+            </div>
+            {lastRefreshAt && (
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p>
+                  Last refresh: {new Date(lastRefreshAt).toLocaleString()}
+                </p>
+                {lastRefreshInfo && (
+                  <p className="text-xs">{lastRefreshInfo}</p>
+                )}
+              </div>
             )}
           </div>
         </CardContent>
