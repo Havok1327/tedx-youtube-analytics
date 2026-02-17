@@ -122,7 +122,7 @@ export function VideoForm({ events, speakers, onSuccess }: VideoFormProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Paste a YouTube video URL below and click Lookup to fetch its details. Then assign it to an event and select the speaker(s) before saving.
+          Paste a YouTube video URL below and click Lookup to fetch its details. Then assign it to an event and select the speaker(s) before saving. Events and speakers must be created first (see sections below) before they can be assigned to a video.
         </p>
         <div className="flex gap-2">
           <div className="flex-1">
