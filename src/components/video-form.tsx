@@ -121,6 +121,9 @@ export function VideoForm({ events, speakers, onSuccess }: VideoFormProps) {
         <CardTitle>Add Video</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Paste a YouTube video URL below and click Lookup to fetch its details. Then assign it to an event and select the speaker(s) before saving.
+        </p>
         <div className="flex gap-2">
           <div className="flex-1">
             <Label>YouTube URL</Label>
@@ -183,9 +186,23 @@ export function VideoForm({ events, speakers, onSuccess }: VideoFormProps) {
               </div>
             </div>
 
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : "Save Video"}
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? "Saving..." : "Save Video"}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setPreview(null);
+                  setUrl("");
+                  setEventId("");
+                  setSelectedSpeakers([]);
+                  setError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         )}
 
