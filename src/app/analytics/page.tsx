@@ -50,7 +50,11 @@ function EventTrends() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/stats/events").then((r) => r.json()).then(setData).finally(() => setLoading(false));
+    fetch("/api/stats/events")
+      .then((r) => { if (!r.ok) throw new Error("Failed"); return r.json(); })
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <p className="text-muted-foreground py-8 text-center">Loading event trends...</p>;
