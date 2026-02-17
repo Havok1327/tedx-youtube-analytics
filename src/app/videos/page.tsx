@@ -26,11 +26,14 @@ export default function VideosPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/videos").then((r) => r.json()),
-      fetch("/api/events").then((r) => r.json()),
+      fetch("/api/videos").then((r) => r.ok ? r.json() : []),
+      fetch("/api/events").then((r) => r.ok ? r.json() : []),
     ]).then(([vids, evts]) => {
-      setVideos(vids);
-      setEvents(evts);
+      setVideos(Array.isArray(vids) ? vids : []);
+      setEvents(Array.isArray(evts) ? evts : []);
+    }).catch((err) => {
+      console.error("Failed to fetch videos:", err);
+    }).finally(() => {
       setLoading(false);
     });
   }, []);
