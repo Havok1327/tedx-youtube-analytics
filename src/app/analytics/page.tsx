@@ -24,6 +24,8 @@ import {
 import {
   LineChart,
   Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -406,20 +408,249 @@ function PeriodReports() {
   );
 }
 
+// ─── Speaker Leaderboard ────────────────────────────────
+interface LeaderboardSpeaker {
+  name: string;
+  videoCount: number;
+  totalViews: number;
+  totalLikes: number;
+  avgViewsPerDay: number;
+  topVideo: string;
+}
+
+function SpeakerLeaderboard() {
+  const [data, setData] = useState<LeaderboardSpeaker[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<"totalViews" | "videoCount" | "avgViewsPerDay" | "totalLikes">("totalViews");
+
+  useEffect(() => {
+    fetch("/api/videos")
+      .then((r) => r.json())
+      .then((videos: { views: number | null; likes: number | null; title: string | null; publishedAt: string | null; speakers: { firstName: string; lastName: string }[] }[]) => {
+        const speakerMap = new Map<string, { videoCount: number; totalViews: number; totalLikes: number; totalVpd: number; topVideo: string; topViews: number }>();
+
+        for (const v of videos) {
+          const views = v.views || 0;
+          const likes = v.likes || 0;
+          const ageDays = v.publishedAt ? Math.max(1, Math.floor((Date.now() - new Date(v.publishedAt).getTime()) / 86400000)) : null;
+          const vpd = ageDays ? views / ageDays : 0;
+
+          for (const s of v.speakers) {
+            const name = `${s.firstName} ${s.lastName}`.trim();
+            const existing = speakerMap.get(name) || { videoCount: 0, totalViews: 0, totalLikes: 0, totalVpd: 0, topVideo: "", topViews: 0 };
+            existing.videoCount++;
+            existing.totalViews += views;
+            existing.totalLikes += likes;
+            existing.totalVpd += vpd;
+            if (views > existing.topViews) {
+              existing.topViews = views;
+              existing.topVideo = v.title || "Untitled";
+            }
+            speakerMap.set(name, existing);
+          }
+        }
+
+        const result: LeaderboardSpeaker[] = Array.from(speakerMap.entries()).map(([name, stats]) => ({
+          name,
+          videoCount: stats.videoCount,
+          totalViews: stats.totalViews,
+          totalLikes: stats.totalLikes,
+          avgViewsPerDay: Math.round(stats.totalVpd * 10) / 10,
+          topVideo: stats.topVideo,
+        }));
+
+        setData(result);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p className="text-muted-foreground py-8 text-center">Loading speaker leaderboard...</p>;
+  if (data.length === 0) return <p className="text-muted-foreground py-8 text-center">No speaker data available</p>;
+
+  const sorted = [...data].sort((a, b) => b[sortBy] - a[sortBy]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Speaker Leaderboard</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-2 mb-4">
+          {(
+            [
+              ["totalViews", "Total Views"],
+              ["totalLikes", "Total Likes"],
+              ["videoCount", "Video Count"],
+              ["avgViewsPerDay", "Avg Views/Day"],
+            ] as const
+          ).map(([key, label]) => (
+            <Button key={key} size="sm" variant={sortBy === key ? "default" : "outline"} onClick={() => setSortBy(key)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+        <div className="rounded-md border overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8">#</TableHead>
+                <TableHead>Speaker</TableHead>
+                <TableHead className="text-right">Videos</TableHead>
+                <TableHead className="text-right">Total Views</TableHead>
+                <TableHead className="text-right">Total Likes</TableHead>
+                <TableHead className="text-right">Avg Views/Day</TableHead>
+                <TableHead className="max-w-[200px]">Top Video</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sorted.map((s, i) => (
+                <TableRow key={s.name}>
+                  <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                  <TableCell className="font-medium">{s.name}</TableCell>
+                  <TableCell className="text-right">{s.videoCount}</TableCell>
+                  <TableCell className="text-right">{s.totalViews.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{s.totalLikes.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">{s.avgViewsPerDay.toFixed(1)}</TableCell>
+                  <TableCell className="text-sm max-w-[200px] truncate text-muted-foreground">{s.topVideo}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Views by Publish Year ──────────────────────────────
+function ViewsByYear() {
+  const [data, setData] = useState<{ year: string; totalViews: number; totalLikes: number; videoCount: number; avgViews: number }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/videos")
+      .then((r) => r.json())
+      .then((videos: { views: number | null; likes: number | null; publishedAt: string | null }[]) => {
+        const yearMap = new Map<string, { totalViews: number; totalLikes: number; videoCount: number }>();
+
+        for (const v of videos) {
+          const year = v.publishedAt ? new Date(v.publishedAt).getFullYear().toString() : "Unknown";
+          const existing = yearMap.get(year) || { totalViews: 0, totalLikes: 0, videoCount: 0 };
+          existing.totalViews += v.views || 0;
+          existing.totalLikes += v.likes || 0;
+          existing.videoCount++;
+          yearMap.set(year, existing);
+        }
+
+        const result = Array.from(yearMap.entries())
+          .filter(([y]) => y !== "Unknown")
+          .map(([year, stats]) => ({
+            year,
+            totalViews: stats.totalViews,
+            totalLikes: stats.totalLikes,
+            videoCount: stats.videoCount,
+            avgViews: Math.round(stats.totalViews / stats.videoCount),
+          }))
+          .sort((a, b) => a.year.localeCompare(b.year));
+
+        setData(result);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <p className="text-muted-foreground py-8 text-center">Loading views by year...</p>;
+  if (data.length === 0) return <p className="text-muted-foreground py-8 text-center">No data available</p>;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Total Views by Publish Year</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="year" />
+              <YAxis tickFormatter={(v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+              <Tooltip formatter={(value) => [Number(value).toLocaleString(), ""]} />
+              <Bar dataKey="totalViews" name="Total Views" fill="hsl(0, 65%, 50%)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Average Views per Video by Year</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="year" />
+              <YAxis tickFormatter={(v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+              <Tooltip formatter={(value) => [Number(value).toLocaleString(), ""]} />
+              <Bar dataKey="avgViews" name="Avg Views/Video" fill="hsl(220, 65%, 50%)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Year Summary</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Year</TableHead>
+                  <TableHead className="text-right">Videos</TableHead>
+                  <TableHead className="text-right">Total Views</TableHead>
+                  <TableHead className="text-right">Total Likes</TableHead>
+                  <TableHead className="text-right">Avg Views/Video</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((d) => (
+                  <TableRow key={d.year}>
+                    <TableCell className="font-medium">{d.year}</TableCell>
+                    <TableCell className="text-right">{d.videoCount}</TableCell>
+                    <TableCell className="text-right">{d.totalViews.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{d.totalLikes.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{d.avgViews.toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────
 export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Analytics</h1>
       <Tabs defaultValue="events">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="events">Event Trends</TabsTrigger>
+          <TabsTrigger value="leaderboard">Speaker Leaderboard</TabsTrigger>
           <TabsTrigger value="speakers">Speaker Deep Dive</TabsTrigger>
           <TabsTrigger value="compare">Compare Videos</TabsTrigger>
           <TabsTrigger value="periods">Period Reports</TabsTrigger>
+          <TabsTrigger value="yearly">Views by Year</TabsTrigger>
         </TabsList>
         <TabsContent value="events" className="mt-4">
           <EventTrends />
+        </TabsContent>
+        <TabsContent value="leaderboard" className="mt-4">
+          <SpeakerLeaderboard />
         </TabsContent>
         <TabsContent value="speakers" className="mt-4">
           <SpeakerDeepDive />
@@ -429,6 +660,9 @@ export default function AnalyticsPage() {
         </TabsContent>
         <TabsContent value="periods" className="mt-4">
           <PeriodReports />
+        </TabsContent>
+        <TabsContent value="yearly" className="mt-4">
+          <ViewsByYear />
         </TabsContent>
       </Tabs>
     </div>

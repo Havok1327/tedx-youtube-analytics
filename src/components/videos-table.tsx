@@ -36,7 +36,7 @@ interface Video {
   viewsPerDay: number | null;
 }
 
-type SortField = "title" | "views" | "likes" | "viewsPerDay" | "publishedAt" | "lastUpdated" | "speakers" | "eventName";
+type SortField = "title" | "views" | "likes" | "viewsPerDay" | "engagement" | "publishedAt" | "lastUpdated" | "speakers" | "eventName";
 type SortDirection = "asc" | "desc";
 
 interface VideosTableProps {
@@ -99,6 +99,12 @@ export function VideosTable({ videos, events }: VideosTableProps) {
         case "viewsPerDay":
           cmp = (a.viewsPerDay || 0) - (b.viewsPerDay || 0);
           break;
+        case "engagement": {
+          const aEng = a.views ? ((a.likes || 0) / a.views) * 100 : 0;
+          const bEng = b.views ? ((b.likes || 0) / b.views) * 100 : 0;
+          cmp = aEng - bEng;
+          break;
+        }
         case "publishedAt":
           cmp = (a.publishedAt || "").localeCompare(b.publishedAt || "");
           break;
@@ -129,13 +135,14 @@ export function VideosTable({ videos, events }: VideosTableProps) {
       return val;
     };
 
-    const headers = ["Speaker(s)", "Event", "Title", "Views", "Likes", "Views/Day", "Published", "YouTube URL"];
+    const headers = ["Speaker(s)", "Event", "Title", "Views", "Likes", "Engagement %", "Views/Day", "Published", "YouTube URL"];
     const rows = filtered.map((v) => [
       escapeField(speakerNames(v)),
       escapeField(v.eventName || ""),
       escapeField(v.title || "Untitled"),
       (v.views || 0).toString(),
       (v.likes || 0).toString(),
+      v.views ? (((v.likes || 0) / v.views) * 100).toFixed(2) : "",
       v.viewsPerDay?.toFixed(1) || "",
       v.publishedAt ? new Date(v.publishedAt).toLocaleDateString() : "",
       v.url || `https://www.youtube.com/watch?v=${v.youtubeId}`,
@@ -217,6 +224,12 @@ export function VideosTable({ videos, events }: VideosTableProps) {
               </TableHead>
               <TableHead
                 className="cursor-pointer hover:bg-accent/50 select-none text-right"
+                onClick={() => toggleSort("engagement")}
+              >
+                Eng %{sortIndicator("engagement")}
+              </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-accent/50 select-none text-right"
                 onClick={() => toggleSort("viewsPerDay")}
               >
                 Views/Day{sortIndicator("viewsPerDay")}
@@ -232,7 +245,7 @@ export function VideosTable({ videos, events }: VideosTableProps) {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   No videos found
                 </TableCell>
               </TableRow>
@@ -252,6 +265,9 @@ export function VideosTable({ videos, events }: VideosTableProps) {
                   </TableCell>
                   <TableCell className="text-right">{(video.views || 0).toLocaleString()}</TableCell>
                   <TableCell className="text-right">{(video.likes || 0).toLocaleString()}</TableCell>
+                  <TableCell className="text-right">
+                    {video.views ? (((video.likes || 0) / video.views) * 100).toFixed(1) + "%" : "\u2014"}
+                  </TableCell>
                   <TableCell className="text-right">{video.viewsPerDay?.toFixed(1) || "\u2014"}</TableCell>
                   <TableCell className="text-sm">
                     {video.publishedAt

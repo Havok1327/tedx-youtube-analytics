@@ -8,6 +8,13 @@
       "when": 1770855880831,
       "tag": "0000_exotic_rafael_vega",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1771299045212,
+      "tag": "0001_clean_spiral",
+      "breakpoints": true
     }
   ]
 }

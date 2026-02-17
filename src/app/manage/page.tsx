@@ -318,6 +318,28 @@ export default function ManagePage() {
 
       <Separator />
 
+      {/* Exports */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Export Data</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Download data as CSV files for use in spreadsheets.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Button variant="outline" asChild>
+              <a href="/api/export/history" download>Export View History</a>
+            </Button>
+            <Button variant="outline" asChild>
+              <a href="/api/export/speakers" download>Export Speaker Summary</a>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Separator />
+
       {/* CSV Import */}
       <CsvImport />
 
