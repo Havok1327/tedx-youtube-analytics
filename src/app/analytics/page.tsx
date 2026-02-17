@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,29 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const toggle = useCallback(() => setOpen((o) => !o), []);
+
+  return (
+    <span className="inline-flex items-center">
+      <button
+        type="button"
+        onClick={toggle}
+        className="ml-2 inline-flex items-center justify-center size-5 rounded-full border text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        aria-label="Info"
+      >
+        i
+      </button>
+      {open && (
+        <span className="ml-2 text-sm font-normal text-muted-foreground">
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
 
 const COLORS = [
   "hsl(0, 65%, 50%)", "hsl(220, 65%, 50%)", "hsl(120, 50%, 40%)",
@@ -67,7 +90,7 @@ function EventTrends() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Total Views by Event Over Time</CardTitle>
+        <CardTitle>Total Views by Event Over Time<InfoTip text="Tracks how total views for each event grow over time. Each line represents one event, summing views across all its videos. Builds up as refresh snapshots accumulate." /></CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={450}>
@@ -149,7 +172,7 @@ function EventScorecard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Event Scorecard</CardTitle>
+        <CardTitle>Event Scorecard<InfoTip text="Summary stats for each TEDx event: total views, average views per video, engagement rate (likes/views), and the best-performing video from each event." /></CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex gap-2 mb-4">
@@ -249,7 +272,7 @@ function SpeakerDeepDive() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Speaker Deep Dive</CardTitle>
+          <CardTitle>Speaker Deep Dive<InfoTip text="Select a speaker to see their individual video performance over time. Shows a view history chart for each of their talks and a video list." /></CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <Input placeholder="Search speakers..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
@@ -363,7 +386,7 @@ function VideoComparison() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Compare Videos</CardTitle>
+          <CardTitle>Compare Videos<InfoTip text="Select 2-5 videos to overlay their view growth on one chart. Useful for comparing how different talks perform over the same time period." /></CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">Select 2-5 videos to overlay their view growth.</p>
@@ -450,7 +473,7 @@ function PeriodReports() {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Period Report</CardTitle>
+          <CardTitle>Period Report<InfoTip text="Shows view gains for each video over the past week and month. Sort by absolute gains or percentage growth to find trending and rising videos." /></CardTitle>
           <div className="flex gap-2 text-xs text-muted-foreground">
             <span>Latest: {formatDate(data.latestDate)}</span>
             <span>vs Week: {formatDate(data.weekAgoDate)}</span>
@@ -586,7 +609,7 @@ function SpeakerLeaderboard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Speaker Leaderboard</CardTitle>
+        <CardTitle>Speaker Leaderboard<InfoTip text="Ranks all speakers by their total reach across all videos. Sort by total views, likes, video count, or average daily views to see who's driving the most engagement." /></CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex gap-2 mb-4">
@@ -679,7 +702,7 @@ function ViewsByYear() {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Total Views by Publish Year</CardTitle>
+          <CardTitle>Total Views by Publish Year<InfoTip text="Groups all videos by the year they were published on YouTube. Shows whether newer events are gaining more traction than older ones, and how average performance per video changes over the years." /></CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
