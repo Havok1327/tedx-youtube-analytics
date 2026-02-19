@@ -14,6 +14,7 @@ interface Video {
   lastUpdated: string | null;
   eventId: number | null;
   eventName: string | null;
+  excludeFromCharts: number;
   speakers: { id: number; firstName: string; lastName: string }[];
   ageInDays: number | null;
   viewsPerDay: number | null;
@@ -23,10 +24,13 @@ export default function VideosPage() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [events, setEvents] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [includeExcluded, setIncludeExcluded] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
+    const videosUrl = includeExcluded ? "/api/videos?includeExcluded=true" : "/api/videos";
     Promise.all([
-      fetch("/api/videos").then((r) => r.ok ? r.json() : []),
+      fetch(videosUrl).then((r) => r.ok ? r.json() : []),
       fetch("/api/events").then((r) => r.ok ? r.json() : []),
     ]).then(([vids, evts]) => {
       setVideos(Array.isArray(vids) ? vids : []);
@@ -36,7 +40,7 @@ export default function VideosPage() {
     }).finally(() => {
       setLoading(false);
     });
-  }, []);
+  }, [includeExcluded]);
 
   if (loading) {
     return (
@@ -48,7 +52,18 @@ export default function VideosPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Videos</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Videos</h1>
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeExcluded}
+            onChange={(e) => setIncludeExcluded(e.target.checked)}
+            className="h-4 w-4"
+          />
+          Show excluded
+        </label>
+      </div>
       <VideosTable videos={videos} events={events} />
     </div>
   );
