@@ -215,14 +215,15 @@ export default function VideoDetailPage() {
           <Button variant="outline" size="sm" onClick={openEditDialog}>
             Edit
           </Button>
-          <Button
-            variant={video.excludeFromCharts ? "secondary" : "ghost"}
-            size="sm"
-            onClick={handleToggleExclude}
-            disabled={togglingExclude}
-          >
-            {video.excludeFromCharts ? "Include in Charts" : "Exclude from Charts"}
-          </Button>
+          <label className={`flex items-center gap-2 text-sm cursor-pointer select-none px-3 py-1.5 rounded-md border ${video.excludeFromCharts ? "border-destructive/50 text-destructive" : "border-border text-foreground"} ${togglingExclude ? "opacity-50 pointer-events-none" : ""}`}>
+            <input
+              type="checkbox"
+              checked={!video.excludeFromCharts}
+              onChange={handleToggleExclude}
+              className="h-4 w-4"
+            />
+            {video.excludeFromCharts ? "Excluded from charts" : "Included in charts"}
+          </label>
         </div>
       </div>
 
