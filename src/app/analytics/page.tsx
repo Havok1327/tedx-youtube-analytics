@@ -894,6 +894,175 @@ function ViewsByYear({ includeExcluded }: { includeExcluded: boolean }) {
   );
 }
 
+// ─── Weekly Report ──────────────────────────────────────
+interface WeeklyRow {
+  date: string;
+  videoId: number;
+  title: string;
+  speaker: string;
+  event: string;
+  totalViews: number;
+  weeklyGain: number | null;
+}
+
+function WeeklyReport() {
+  const [data, setData] = useState<WeeklyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [speakerFilter, setSpeakerFilter] = useState("all");
+  const [eventFilter, setEventFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  useEffect(() => {
+    fetch("/api/stats/weekly")
+      .then((r) => { if (!r.ok) throw new Error("Failed"); return r.json(); })
+      .then(setData)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const speakerOptions = useMemo(() => [...new Set(data.map((r) => r.speaker))].sort(), [data]);
+  const eventOptions = useMemo(() => [...new Set(data.map((r) => r.event).filter(Boolean))].sort(), [data]);
+
+  const filtered = useMemo(() => {
+    return data.filter((r) => {
+      if (speakerFilter !== "all" && r.speaker !== speakerFilter) return false;
+      if (eventFilter !== "all" && r.event !== eventFilter) return false;
+      if (dateFrom && r.date < dateFrom) return false;
+      if (dateTo && r.date > dateTo) return false;
+      return true;
+    });
+  }, [data, speakerFilter, eventFilter, dateFrom, dateTo]);
+
+  const exportCsv = useCallback(() => {
+    const escape = (v: string) =>
+      v.includes(",") || v.includes('"') || v.includes("\n")
+        ? `"${v.replace(/"/g, '""')}"` : v;
+
+    const headers = ["Date", "Speaker", "Event", "Title", "Total Views", "Weekly Gain"];
+    const rows = filtered.map((r) => [
+      r.date,
+      escape(r.speaker),
+      escape(r.event),
+      escape(r.title),
+      r.totalViews.toString(),
+      r.weeklyGain !== null ? r.weeklyGain.toString() : "",
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tedx-weekly-views-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filtered]);
+
+  if (loading) return <p className="text-muted-foreground py-8 text-center">Loading weekly report...</p>;
+  if (data.length === 0) return <p className="text-muted-foreground py-8 text-center">No snapshot history yet. Run a refresh to start collecting weekly data.</p>;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>
+            Weekly View Report
+            <InfoTip text="Shows cumulative views and week-over-week gain for each video at every snapshot. Filter by speaker, event, or date range, then export to CSV." />
+          </CardTitle>
+          <Button size="sm" variant="outline" onClick={exportCsv}>
+            Export CSV
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Select value={speakerFilter} onValueChange={setSpeakerFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All Speakers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Speakers</SelectItem>
+              {speakerOptions.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={eventFilter} onValueChange={setEventFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="All Events" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Events</SelectItem>
+              {eventOptions.map((e) => (
+                <SelectItem key={e} value={e}>{e}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-9 rounded-md border px-2 text-sm"
+          />
+          <span className="self-center text-muted-foreground text-sm">to</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-9 rounded-md border px-2 text-sm"
+          />
+          {(speakerFilter !== "all" || eventFilter !== "all" || dateFrom || dateTo) && (
+            <Button size="sm" variant="ghost" onClick={() => { setSpeakerFilter("all"); setEventFilter("all"); setDateFrom(""); setDateTo(""); }}>
+              Clear
+            </Button>
+          )}
+          <span className="self-center text-sm text-muted-foreground ml-auto">{filtered.length.toLocaleString()} rows</span>
+        </div>
+
+        <div className="rounded-md border overflow-auto max-h-[600px]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Speaker</TableHead>
+                <TableHead>Event</TableHead>
+                <TableHead className="min-w-[200px]">Title</TableHead>
+                <TableHead className="text-right">Total Views</TableHead>
+                <TableHead className="text-right">Weekly Gain</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.slice(0, 500).map((r, i) => (
+                <TableRow key={`${r.videoId}-${r.date}-${i}`}>
+                  <TableCell className="text-sm">{r.date}</TableCell>
+                  <TableCell className="text-sm">{r.speaker}</TableCell>
+                  <TableCell className="text-sm">{r.event || "—"}</TableCell>
+                  <TableCell className="text-sm max-w-[250px] truncate">
+                    <a href={`/videos/${r.videoId}`} className="hover:underline">{r.title}</a>
+                  </TableCell>
+                  <TableCell className="text-right">{r.totalViews.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">
+                    {r.weeklyGain !== null ? (
+                      <span className={r.weeklyGain > 0 ? "text-green-600" : "text-muted-foreground"}>
+                        {r.weeklyGain > 0 ? "+" : ""}{r.weeklyGain.toLocaleString()}
+                      </span>
+                    ) : <span className="text-muted-foreground text-xs">first snapshot</span>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+        {filtered.length > 500 && (
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Showing 500 of {filtered.length.toLocaleString()} rows — use filters to narrow down, or export CSV for the full set.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────
 export default function AnalyticsPage() {
   const [includeExcluded, setIncludeExcluded] = useState(false);
@@ -921,6 +1090,7 @@ export default function AnalyticsPage() {
           <TabsTrigger value="periods">Period Reports</TabsTrigger>
           <TabsTrigger value="yearly">Views by Year</TabsTrigger>
           <TabsTrigger value="events">Event Trends</TabsTrigger>
+          <TabsTrigger value="weekly">Weekly Report</TabsTrigger>
         </TabsList>
         <TabsContent value="scorecard" className="mt-4">
           <EventScorecard includeExcluded={includeExcluded} />
@@ -942,6 +1112,9 @@ export default function AnalyticsPage() {
         </TabsContent>
         <TabsContent value="events" className="mt-4">
           <EventTrends includeExcluded={includeExcluded} />
+        </TabsContent>
+        <TabsContent value="weekly" className="mt-4">
+          <WeeklyReport />
         </TabsContent>
       </Tabs>
     </div>
