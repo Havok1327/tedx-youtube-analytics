@@ -221,7 +221,7 @@ export default function VideoDetailPage() {
             onClick={handleToggleExclude}
             disabled={togglingExclude}
           >
-            {video.excludeFromCharts ? "Excluded from charts" : "Exclude from charts"}
+            {video.excludeFromCharts ? "Include in Charts" : "Exclude from Charts"}
           </Button>
         </div>
       </div>
