@@ -28,6 +28,7 @@ export async function GET(
         lastUpdated: videos.lastUpdated,
         eventId: videos.eventId,
         eventName: events.name,
+        excludeFromCharts: videos.excludeFromCharts,
       })
       .from(videos)
       .leftJoin(events, eq(videos.eventId, events.id))
@@ -87,7 +88,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { title, url, eventId, speakerIds, views, likes, publishedAt } = body;
+    const { title, url, eventId, speakerIds, views, likes, publishedAt, excludeFromCharts } = body;
 
     const updateData: Record<string, unknown> = {};
     if (title !== undefined) updateData.title = title;
@@ -96,6 +97,7 @@ export async function PUT(
     if (views !== undefined) updateData.views = views;
     if (likes !== undefined) updateData.likes = likes;
     if (publishedAt !== undefined) updateData.publishedAt = publishedAt;
+    if (excludeFromCharts !== undefined) updateData.excludeFromCharts = excludeFromCharts ? 1 : 0;
 
     if (Object.keys(updateData).length > 0) {
       await db.update(videos).set(updateData).where(eq(videos.id, videoId));

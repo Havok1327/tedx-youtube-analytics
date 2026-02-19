@@ -26,10 +26,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshResult, setRefreshResult] = useState<string | null>(null);
+  const [includeExcluded, setIncludeExcluded] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = async (incExcluded: boolean) => {
     try {
-      const res = await fetch("/api/stats/overview");
+      const url = incExcluded ? "/api/stats/overview?includeExcluded=true" : "/api/stats/overview";
+      const res = await fetch(url);
       if (res.ok) {
         setData(await res.json());
       }
@@ -41,8 +43,8 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(includeExcluded);
+  }, [includeExcluded]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -54,7 +56,7 @@ export default function Dashboard() {
         setRefreshResult(
           `Updated ${result.updated}/${result.total} videos. ${result.errors.length} errors.`
         );
-        fetchData();
+        fetchData(includeExcluded);
       } else {
         setRefreshResult(`Error: ${result.error || "Unknown error"}`);
       }
@@ -92,6 +94,15 @@ export default function Dashboard() {
           {refreshResult && (
             <span className="text-sm text-muted-foreground">{refreshResult}</span>
           )}
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeExcluded}
+              onChange={(e) => setIncludeExcluded(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Show excluded
+          </label>
           <Button onClick={handleRefresh} disabled={refreshing} variant="outline">
             {refreshing ? "Refreshing..." : "Refresh All Stats"}
           </Button>

@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { events, videos, statsHistory } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, ne } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const includeExcluded = searchParams.get("includeExcluded") === "true";
+    const excludeFilter = includeExcluded ? undefined : ne(videos.excludeFromCharts, 1);
+
     const allEvents = await db.select().from(events).all();
-    const allVideos = await db.select().from(videos).all();
+    const allVideos = await db.select().from(videos).where(excludeFilter).all();
     const allHistory = await db.select().from(statsHistory).all();
 
     // Map video IDs to event IDs

@@ -15,6 +15,13 @@
       "when": 1771299045212,
       "tag": "0001_clean_spiral",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1771539804597,
+      "tag": "0002_wakeful_rocket_raccoon",
+      "breakpoints": true
     }
   ]
 }

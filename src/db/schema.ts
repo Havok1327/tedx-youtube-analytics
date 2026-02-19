@@ -21,6 +21,7 @@ export const videos = sqliteTable("videos", {
   likes: integer("likes").default(0),
   lastUpdated: text("last_updated"),
   eventId: integer("event_id").references(() => events.id),
+  excludeFromCharts: integer("exclude_from_charts").default(0).notNull(),
 });
 
 export const videoSpeakers = sqliteTable(

@@ -42,6 +42,7 @@ interface VideoDetail {
   lastUpdated: string | null;
   eventId: number | null;
   eventName: string | null;
+  excludeFromCharts: number;
   speakers: { id: number; firstName: string; lastName: string }[];
   history: { id: number; views: number; likes: number; recordedAt: string }[];
   ageInDays: number | null;
@@ -58,6 +59,8 @@ export default function VideoDetailPage() {
   const router = useRouter();
   const [video, setVideo] = useState<VideoDetail | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [togglingExclude, setTogglingExclude] = useState(false);
 
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false);
@@ -121,6 +124,21 @@ export default function VideoDetailPage() {
       setEditError("Failed to save changes");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleToggleExclude = async () => {
+    if (!video) return;
+    setTogglingExclude(true);
+    try {
+      const res = await fetch(`/api/videos/${video.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excludeFromCharts: video.excludeFromCharts ? 0 : 1 }),
+      });
+      if (res.ok) fetchVideo();
+    } finally {
+      setTogglingExclude(false);
     }
   };
 
@@ -196,6 +214,14 @@ export default function VideoDetailPage() {
           )}
           <Button variant="outline" size="sm" onClick={openEditDialog}>
             Edit
+          </Button>
+          <Button
+            variant={video.excludeFromCharts ? "secondary" : "ghost"}
+            size="sm"
+            onClick={handleToggleExclude}
+            disabled={togglingExclude}
+          >
+            {video.excludeFromCharts ? "Excluded from charts" : "Exclude from charts"}
           </Button>
         </div>
       </div>

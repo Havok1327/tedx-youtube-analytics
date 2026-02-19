@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { videos, statsHistory, events, videoSpeakers, speakers } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, ne } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +10,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
+    const includeExcluded = searchParams.get("includeExcluded") === "true";
+    const excludeFilter = includeExcluded ? undefined : ne(videos.excludeFromCharts, 1);
 
     const allHistory = await db.select().from(statsHistory).all();
-    const allVideos = await db.select().from(videos).all();
+    const allVideos = await db.select().from(videos).where(excludeFilter).all();
 
     // Get unique dates sorted descending
     const dateSet = new Set<string>();

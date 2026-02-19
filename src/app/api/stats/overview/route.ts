@@ -1,12 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { videos, events, statsHistory } from "@/db/schema";
-import { sql, eq, desc } from "drizzle-orm";
+import { sql, eq, desc, ne } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const includeExcluded = searchParams.get("includeExcluded") === "true";
+    const excludeFilter = includeExcluded ? undefined : ne(videos.excludeFromCharts, 1);
+
     // Summary stats
     const summary = await db
       .select({
@@ -15,6 +19,7 @@ export async function GET() {
         totalLikes: sql<number>`coalesce(sum(${videos.likes}), 0)`,
       })
       .from(videos)
+      .where(excludeFilter)
       .get();
 
     // Average views per day across all videos
@@ -27,6 +32,7 @@ export async function GET() {
         ), 0)`,
       })
       .from(videos)
+      .where(excludeFilter)
       .get();
 
     // Top 15 by views
@@ -38,6 +44,7 @@ export async function GET() {
         youtubeId: videos.youtubeId,
       })
       .from(videos)
+      .where(excludeFilter)
       .orderBy(desc(videos.views))
       .limit(15)
       .all();
@@ -52,6 +59,7 @@ export async function GET() {
       })
       .from(videos)
       .innerJoin(events, eq(videos.eventId, events.id))
+      .where(excludeFilter)
       .groupBy(events.name)
       .orderBy(desc(sql`avg(${videos.views})`))
       .all();
@@ -65,6 +73,8 @@ export async function GET() {
         totalLikes: sql<number>`sum(${statsHistory.likes})`,
       })
       .from(statsHistory)
+      .innerJoin(videos, eq(statsHistory.videoId, videos.id))
+      .where(excludeFilter)
       .groupBy(statsHistory.recordedAt)
       .orderBy(statsHistory.recordedAt)
       .all();
@@ -87,6 +97,7 @@ export async function GET() {
     const allVideos = await db
       .select({ id: videos.id, title: videos.title, views: videos.views })
       .from(videos)
+      .where(excludeFilter)
       .orderBy(desc(videos.views))
       .all();
 
