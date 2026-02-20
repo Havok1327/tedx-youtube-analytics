@@ -944,7 +944,7 @@ function WeeklyReport() {
         const existing = byDate.get(r.date) || { totalViews: 0, weeklyGain: 0, hasGain: false };
         existing.totalViews += r.totalViews;
         if (r.weeklyGain !== null) {
-          existing.weeklyGain += r.weeklyGain;
+          existing.weeklyGain += Math.max(0, r.weeklyGain);
           existing.hasGain = true;
         }
         byDate.set(r.date, existing);
@@ -962,7 +962,7 @@ function WeeklyReport() {
       return rows.map((r) => ({
         date: r.date,
         totalViews: r.totalViews,
-        weeklyGain: r.weeklyGain,
+        weeklyGain: r.weeklyGain !== null ? Math.max(0, r.weeklyGain) : null,
       }));
     }
   }, [rawData, videoFilter]);
