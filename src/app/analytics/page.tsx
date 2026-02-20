@@ -905,16 +905,9 @@ interface WeeklyRow {
   weeklyGain: number | null;
 }
 
-interface WeekSummary {
-  date: string;
-  totalViews: number;
-  weeklyGain: number | null;
-}
-
 function WeeklyReport() {
   const [rawData, setRawData] = useState<WeeklyRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [videoFilter, setVideoFilter] = useState("all");
 
   useEffect(() => {
     fetch("/api/stats/weekly")
@@ -924,160 +917,84 @@ function WeeklyReport() {
       .finally(() => setLoading(false));
   }, []);
 
-  const videoOptions = useMemo(() => {
-    const seen = new Map<string, string>();
+  // Group by Sun–Sat calendar week, sum gains across all videos
+  const weeks = useMemo(() => {
+    const byWeek = new Map<string, { rows: WeeklyRow[]; weekEnd: string }>();
+
     for (const r of rawData) {
-      if (!seen.has(r.videoId.toString())) {
-        seen.set(r.videoId.toString(), `${r.speaker}: ${r.title}`);
-      }
+      const d = new Date(r.date + "T00:00:00");
+      const sunday = new Date(d);
+      sunday.setDate(d.getDate() - d.getDay());
+      const saturday = new Date(sunday);
+      saturday.setDate(sunday.getDate() + 6);
+      const weekKey = sunday.toISOString().split("T")[0];
+      const weekEnd = saturday.toISOString().split("T")[0];
+
+      const existing = byWeek.get(weekKey) || { rows: [], weekEnd };
+      existing.rows.push(r);
+      byWeek.set(weekKey, existing);
     }
-    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+
+    return [...byWeek.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([weekStart, { rows, weekEnd }]) => {
+        const weeklyGain = rows.reduce((sum, r) => sum + (r.weeklyGain ?? 0), 0);
+        // Total views = sum of each video's max total this week (latest snapshot)
+        const maxByVideo = new Map<number, number>();
+        for (const r of rows) {
+          maxByVideo.set(r.videoId, Math.max(maxByVideo.get(r.videoId) ?? 0, r.totalViews));
+        }
+        const totalViews = [...maxByVideo.values()].reduce((a, b) => a + b, 0);
+        return { weekStart, weekEnd, weeklyGain, totalViews };
+      });
   }, [rawData]);
 
-  // Aggregate or filter to single video, always sorted oldest→newest
-  const weeklyData = useMemo((): WeekSummary[] => {
-    if (videoFilter === "all") {
-      // Carry-forward approach: at each date, use every video's MOST RECENT known view count.
-      // Without this, dates where only some videos have snapshots produce a misleading low total,
-      // causing the portfolio total to oscillate and produce phantom negative gains.
-      const sortedRows = [...rawData].sort((a, b) => a.date.localeCompare(b.date));
-      const uniqueDates = [...new Set(sortedRows.map((r) => r.date))];
-      const lastKnown = new Map<number, number>(); // videoId → most recent views
-
-      const result: WeekSummary[] = [];
-      let ri = 0;
-
-      for (const date of uniqueDates) {
-        // Advance carry-forward for every snapshot on this date
-        while (ri < sortedRows.length && sortedRows[ri].date === date) {
-          lastKnown.set(sortedRows[ri].videoId, sortedRows[ri].totalViews);
-          ri++;
-        }
-
-        let total = 0;
-        for (const views of lastKnown.values()) total += views;
-
-        const prev = result.length > 0 ? result[result.length - 1].totalViews : null;
-        result.push({
-          date,
-          totalViews: total,
-          weeklyGain: prev !== null ? total - prev : null,
-        });
-      }
-
-      return result;
-    } else {
-      const rows = rawData
-        .filter((r) => r.videoId.toString() === videoFilter)
-        .sort((a, b) => a.date.localeCompare(b.date));
-      return rows.map((r) => ({
-        date: r.date,
-        totalViews: r.totalViews,
-        weeklyGain: r.weeklyGain,
-      }));
-    }
-  }, [rawData, videoFilter]);
-
-  const chartData = weeklyData.map((r) => ({
-    ...r,
-    displayDate: formatDate(r.date),
-  }));
-
   const exportCsv = useCallback(() => {
-    const headers = ["Date", "Total Views", "Weekly Gain"];
-    const rows = weeklyData.map((r) => [
-      r.date,
-      r.totalViews.toString(),
-      r.weeklyGain !== null ? r.weeklyGain.toString() : "",
+    const headers = ["Week Start", "Week End", "Views Gained", "Total Views"];
+    const rows = [...weeks].reverse().map((w) => [
+      w.weekStart, w.weekEnd, w.weeklyGain.toString(), w.totalViews.toString(),
     ]);
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `tedx-weekly-${videoFilter === "all" ? "all-videos" : "single-video"}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `tedx-weekly-views-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [weeklyData, videoFilter]);
+  }, [weeks]);
 
   if (loading) return <p className="text-muted-foreground py-8 text-center">Loading weekly report...</p>;
   if (rawData.length === 0) return <p className="text-muted-foreground py-8 text-center">No snapshot history yet. Run a refresh to start collecting weekly data.</p>;
 
-  const latestGain = weeklyData.length > 1 ? weeklyData[weeklyData.length - 1].weeklyGain : null;
-  const latestTotal = weeklyData.length > 0 ? weeklyData[weeklyData.length - 1].totalViews : 0;
+  const chartData = weeks.map((w) => ({
+    ...w,
+    displayWeek: new Date(w.weekStart + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+  }));
 
   return (
     <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <Select value={videoFilter} onValueChange={setVideoFilter}>
-          <SelectTrigger className="w-[320px]">
-            <SelectValue placeholder="All Videos (Combined)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Videos (Combined)</SelectItem>
-            {videoOptions.map(([id, label]) => (
-              <SelectItem key={id} value={id}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex justify-between items-center">
+        <span className="text-sm text-muted-foreground">{weeks.length} weeks of data</span>
         <Button size="sm" variant="outline" onClick={exportCsv}>Export CSV</Button>
-        <span className="text-sm text-muted-foreground ml-auto">{weeklyData.length} snapshots</span>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Current Total Views</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{latestTotal.toLocaleString()}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Last Week&apos;s Gain</CardTitle></CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${latestGain && latestGain > 0 ? "text-green-600" : ""}`}>
-              {latestGain !== null ? `+${latestGain.toLocaleString()}` : "—"}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Cumulative chart */}
+      {/* Weekly gains bar chart */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            Cumulative Views Over Time
-            <InfoTip text={videoFilter === "all" ? "Sum of all videos' views at each weekly snapshot." : "Running total views for this video at each snapshot."} />
-          </CardTitle>
+          <CardTitle>Weekly Views Gained — All Videos</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
+            <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="displayDate" tick={{ fontSize: 10 }} />
-              <YAxis tickFormatter={(v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
-              <Tooltip formatter={(v) => [Number(v).toLocaleString(), "Total Views"]} labelFormatter={(l) => l} />
-              <Line type="monotone" dataKey="totalViews" stroke="hsl(0, 65%, 50%)" strokeWidth={2} dot={chartData.length < 20} />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Weekly gain chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Weekly View Gain
-            <InfoTip text="New views gained each week — the difference between consecutive snapshots." />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={chartData.filter((r) => r.weeklyGain !== null)} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="displayDate" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="displayWeek" tick={{ fontSize: 10 }} />
               <YAxis tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
-              <Tooltip formatter={(v) => [Number(v).toLocaleString(), "Views Gained"]} labelFormatter={(l) => l} />
-              <Bar dataKey="weeklyGain" name="Views Gained" fill="hsl(220, 65%, 50%)" radius={[2, 2, 0, 0]} />
+              <Tooltip
+                formatter={(v) => [Number(v).toLocaleString(), "Views Gained"]}
+                labelFormatter={(l) => `Week of ${l}`}
+              />
+              <Bar dataKey="weeklyGain" name="Views Gained" fill="hsl(0, 65%, 50%)" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -1085,28 +1002,32 @@ function WeeklyReport() {
 
       {/* Data table — newest first */}
       <Card>
-        <CardHeader><CardTitle>Weekly Data Table</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Weekly Data</CardTitle></CardHeader>
         <CardContent>
-          <div className="rounded-md border overflow-auto max-h-[500px]">
+          <div className="rounded-md border overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Week (Sun – Sat)</TableHead>
+                  <TableHead className="text-right">Views Gained</TableHead>
                   <TableHead className="text-right">Total Views</TableHead>
-                  <TableHead className="text-right">Weekly Gain</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {[...weeklyData].reverse().map((r) => (
-                  <TableRow key={r.date}>
-                    <TableCell className="text-sm">{r.date}</TableCell>
-                    <TableCell className="text-right">{r.totalViews.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">
-                      {r.weeklyGain !== null ? (
-                        <span className={r.weeklyGain > 0 ? "text-green-600" : "text-muted-foreground"}>
-                          {r.weeklyGain > 0 ? "+" : ""}{r.weeklyGain.toLocaleString()}
-                        </span>
-                      ) : <span className="text-xs text-muted-foreground">first snapshot</span>}
+                {[...weeks].reverse().map((w) => (
+                  <TableRow key={w.weekStart}>
+                    <TableCell className="text-sm">
+                      {new Date(w.weekStart + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      {" – "}
+                      {new Date(w.weekEnd + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {w.weeklyGain > 0
+                        ? <span className="text-green-600">+{w.weeklyGain.toLocaleString()}</span>
+                        : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {w.totalViews.toLocaleString()}
                     </TableCell>
                   </TableRow>
                 ))}
