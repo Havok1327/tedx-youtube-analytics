@@ -917,7 +917,7 @@ function WeeklyReport() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Group by Sun–Sat calendar week, sum gains across all videos
+  // Group by Sun–Sat calendar week, compute gain from consecutive week totals
   const weeks = useMemo(() => {
     const byWeek = new Map<string, { rows: WeeklyRow[]; weekEnd: string }>();
 
@@ -935,24 +935,30 @@ function WeeklyReport() {
       byWeek.set(weekKey, existing);
     }
 
-    return [...byWeek.entries()]
+    const result = [...byWeek.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([weekStart, { rows, weekEnd }]) => {
-        const weeklyGain = rows.reduce((sum, r) => sum + (r.weeklyGain ?? 0), 0);
-        // Total views = sum of each video's max total this week (latest snapshot)
+        // Sum each video's highest view count seen this week
         const maxByVideo = new Map<number, number>();
         for (const r of rows) {
           maxByVideo.set(r.videoId, Math.max(maxByVideo.get(r.videoId) ?? 0, r.totalViews));
         }
         const totalViews = [...maxByVideo.values()].reduce((a, b) => a + b, 0);
-        return { weekStart, weekEnd, weeklyGain, totalViews };
+        return { weekStart, weekEnd, totalViews, weeklyGain: null as number | null };
       });
+
+    // Gain = difference of consecutive week totals (avoids null first-snapshot issues)
+    for (let i = 1; i < result.length; i++) {
+      result[i].weeklyGain = result[i].totalViews - result[i - 1].totalViews;
+    }
+
+    return result;
   }, [rawData]);
 
   const exportCsv = useCallback(() => {
     const headers = ["Week Start", "Week End", "Views Gained", "Total Views"];
     const rows = [...weeks].reverse().map((w) => [
-      w.weekStart, w.weekEnd, w.weeklyGain.toString(), w.totalViews.toString(),
+      w.weekStart, w.weekEnd, w.weeklyGain !== null ? w.weeklyGain.toString() : "", w.totalViews.toString(),
     ]);
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -1022,9 +1028,11 @@ function WeeklyReport() {
                       {new Date(w.weekEnd + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {w.weeklyGain > 0
+                      {w.weeklyGain !== null && w.weeklyGain > 0
                         ? <span className="text-green-600">+{w.weeklyGain.toLocaleString()}</span>
-                        : <span className="text-muted-foreground">—</span>}
+                        : w.weeklyGain === 0
+                          ? <span className="text-muted-foreground">+0</span>
+                          : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {w.totalViews.toLocaleString()}
