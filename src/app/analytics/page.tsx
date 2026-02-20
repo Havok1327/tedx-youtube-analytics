@@ -937,24 +937,32 @@ function WeeklyReport() {
   // Aggregate or filter to single video, always sorted oldest→newest
   const weeklyData = useMemo((): WeekSummary[] => {
     if (videoFilter === "all") {
-      const byDate = new Map<string, number>();
+      // Sum totalViews per date, and sum per-video weeklyGains (null = first snapshot, excluded from gain).
+      // This prevents newly-added videos from inflating the gain figure with their historical view counts.
+      const byDate = new Map<string, { totalViews: number; weeklyGain: number; hasGain: boolean }>();
       for (const r of rawData) {
-        byDate.set(r.date, (byDate.get(r.date) || 0) + r.totalViews);
+        const existing = byDate.get(r.date) || { totalViews: 0, weeklyGain: 0, hasGain: false };
+        existing.totalViews += r.totalViews;
+        if (r.weeklyGain !== null) {
+          existing.weeklyGain += r.weeklyGain;
+          existing.hasGain = true;
+        }
+        byDate.set(r.date, existing);
       }
       const sorted = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-      return sorted.map(([date, totalViews], i) => ({
+      return sorted.map(([date, { totalViews, weeklyGain, hasGain }]) => ({
         date,
         totalViews,
-        weeklyGain: i > 0 ? totalViews - sorted[i - 1][1] : null,
+        weeklyGain: hasGain ? weeklyGain : null,
       }));
     } else {
       const rows = rawData
         .filter((r) => r.videoId.toString() === videoFilter)
         .sort((a, b) => a.date.localeCompare(b.date));
-      return rows.map((r, i) => ({
+      return rows.map((r) => ({
         date: r.date,
         totalViews: r.totalViews,
-        weeklyGain: i > 0 ? r.totalViews - rows[i - 1].totalViews : null,
+        weeklyGain: r.weeklyGain,
       }));
     }
   }, [rawData, videoFilter]);
