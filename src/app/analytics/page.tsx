@@ -905,46 +905,69 @@ interface WeeklyRow {
   weeklyGain: number | null;
 }
 
+interface WeekSummary {
+  date: string;
+  totalViews: number;
+  weeklyGain: number | null;
+}
+
 function WeeklyReport() {
-  const [data, setData] = useState<WeeklyRow[]>([]);
+  const [rawData, setRawData] = useState<WeeklyRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [speakerFilter, setSpeakerFilter] = useState("all");
-  const [eventFilter, setEventFilter] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [videoFilter, setVideoFilter] = useState("all");
 
   useEffect(() => {
     fetch("/api/stats/weekly")
       .then((r) => { if (!r.ok) throw new Error("Failed"); return r.json(); })
-      .then(setData)
+      .then(setRawData)
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const speakerOptions = useMemo(() => [...new Set(data.map((r) => r.speaker))].sort(), [data]);
-  const eventOptions = useMemo(() => [...new Set(data.map((r) => r.event).filter(Boolean))].sort(), [data]);
+  const videoOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const r of rawData) {
+      if (!seen.has(r.videoId.toString())) {
+        seen.set(r.videoId.toString(), `${r.speaker}: ${r.title}`);
+      }
+    }
+    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [rawData]);
 
-  const filtered = useMemo(() => {
-    return data.filter((r) => {
-      if (speakerFilter !== "all" && r.speaker !== speakerFilter) return false;
-      if (eventFilter !== "all" && r.event !== eventFilter) return false;
-      if (dateFrom && r.date < dateFrom) return false;
-      if (dateTo && r.date > dateTo) return false;
-      return true;
-    });
-  }, [data, speakerFilter, eventFilter, dateFrom, dateTo]);
+  // Aggregate or filter to single video, always sorted oldest→newest
+  const weeklyData = useMemo((): WeekSummary[] => {
+    if (videoFilter === "all") {
+      const byDate = new Map<string, number>();
+      for (const r of rawData) {
+        byDate.set(r.date, (byDate.get(r.date) || 0) + r.totalViews);
+      }
+      const sorted = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      return sorted.map(([date, totalViews], i) => ({
+        date,
+        totalViews,
+        weeklyGain: i > 0 ? totalViews - sorted[i - 1][1] : null,
+      }));
+    } else {
+      const rows = rawData
+        .filter((r) => r.videoId.toString() === videoFilter)
+        .sort((a, b) => a.date.localeCompare(b.date));
+      return rows.map((r, i) => ({
+        date: r.date,
+        totalViews: r.totalViews,
+        weeklyGain: i > 0 ? r.totalViews - rows[i - 1].totalViews : null,
+      }));
+    }
+  }, [rawData, videoFilter]);
+
+  const chartData = weeklyData.map((r) => ({
+    ...r,
+    displayDate: formatDate(r.date),
+  }));
 
   const exportCsv = useCallback(() => {
-    const escape = (v: string) =>
-      v.includes(",") || v.includes('"') || v.includes("\n")
-        ? `"${v.replace(/"/g, '""')}"` : v;
-
-    const headers = ["Date", "Speaker", "Event", "Title", "Total Views", "Weekly Gain"];
-    const rows = filtered.map((r) => [
+    const headers = ["Date", "Total Views", "Weekly Gain"];
+    const rows = weeklyData.map((r) => [
       r.date,
-      escape(r.speaker),
-      escape(r.event),
-      escape(r.title),
       r.totalViews.toString(),
       r.weeklyGain !== null ? r.weeklyGain.toString() : "",
     ]);
@@ -953,113 +976,127 @@ function WeeklyReport() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `tedx-weekly-views-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `tedx-weekly-${videoFilter === "all" ? "all-videos" : "single-video"}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [filtered]);
+  }, [weeklyData, videoFilter]);
 
   if (loading) return <p className="text-muted-foreground py-8 text-center">Loading weekly report...</p>;
-  if (data.length === 0) return <p className="text-muted-foreground py-8 text-center">No snapshot history yet. Run a refresh to start collecting weekly data.</p>;
+  if (rawData.length === 0) return <p className="text-muted-foreground py-8 text-center">No snapshot history yet. Run a refresh to start collecting weekly data.</p>;
+
+  const latestGain = weeklyData.length > 1 ? weeklyData[weeklyData.length - 1].weeklyGain : null;
+  const latestTotal = weeklyData.length > 0 ? weeklyData[weeklyData.length - 1].totalViews : 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>
-            Weekly View Report
-            <InfoTip text="Shows cumulative views and week-over-week gain for each video at every snapshot. Filter by speaker, event, or date range, then export to CSV." />
-          </CardTitle>
-          <Button size="sm" variant="outline" onClick={exportCsv}>
-            Export CSV
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap gap-2 mb-4">
-          <Select value={speakerFilter} onValueChange={setSpeakerFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="All Speakers" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Speakers</SelectItem>
-              {speakerOptions.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={eventFilter} onValueChange={setEventFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="All Events" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Events</SelectItem>
-              {eventOptions.map((e) => (
-                <SelectItem key={e} value={e}>{e}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="h-9 rounded-md border px-2 text-sm"
-          />
-          <span className="self-center text-muted-foreground text-sm">to</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="h-9 rounded-md border px-2 text-sm"
-          />
-          {(speakerFilter !== "all" || eventFilter !== "all" || dateFrom || dateTo) && (
-            <Button size="sm" variant="ghost" onClick={() => { setSpeakerFilter("all"); setEventFilter("all"); setDateFrom(""); setDateTo(""); }}>
-              Clear
-            </Button>
-          )}
-          <span className="self-center text-sm text-muted-foreground ml-auto">{filtered.length.toLocaleString()} rows</span>
-        </div>
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <Select value={videoFilter} onValueChange={setVideoFilter}>
+          <SelectTrigger className="w-[320px]">
+            <SelectValue placeholder="All Videos (Combined)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Videos (Combined)</SelectItem>
+            {videoOptions.map(([id, label]) => (
+              <SelectItem key={id} value={id}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button size="sm" variant="outline" onClick={exportCsv}>Export CSV</Button>
+        <span className="text-sm text-muted-foreground ml-auto">{weeklyData.length} snapshots</span>
+      </div>
 
-        <div className="rounded-md border overflow-auto max-h-[600px]">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Speaker</TableHead>
-                <TableHead>Event</TableHead>
-                <TableHead className="min-w-[200px]">Title</TableHead>
-                <TableHead className="text-right">Total Views</TableHead>
-                <TableHead className="text-right">Weekly Gain</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.slice(0, 500).map((r, i) => (
-                <TableRow key={`${r.videoId}-${r.date}-${i}`}>
-                  <TableCell className="text-sm">{r.date}</TableCell>
-                  <TableCell className="text-sm">{r.speaker}</TableCell>
-                  <TableCell className="text-sm">{r.event || "—"}</TableCell>
-                  <TableCell className="text-sm max-w-[250px] truncate">
-                    <a href={`/videos/${r.videoId}`} className="hover:underline">{r.title}</a>
-                  </TableCell>
-                  <TableCell className="text-right">{r.totalViews.toLocaleString()}</TableCell>
-                  <TableCell className="text-right">
-                    {r.weeklyGain !== null ? (
-                      <span className={r.weeklyGain > 0 ? "text-green-600" : "text-muted-foreground"}>
-                        {r.weeklyGain > 0 ? "+" : ""}{r.weeklyGain.toLocaleString()}
-                      </span>
-                    ) : <span className="text-muted-foreground text-xs">first snapshot</span>}
-                  </TableCell>
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Current Total Views</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold">{latestTotal.toLocaleString()}</div></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Last Week&apos;s Gain</CardTitle></CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${latestGain && latestGain > 0 ? "text-green-600" : ""}`}>
+              {latestGain !== null ? `+${latestGain.toLocaleString()}` : "—"}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Cumulative chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Cumulative Views Over Time
+            <InfoTip text={videoFilter === "all" ? "Sum of all videos' views at each weekly snapshot." : "Running total views for this video at each snapshot."} />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="displayDate" tick={{ fontSize: 10 }} />
+              <YAxis tickFormatter={(v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+              <Tooltip formatter={(v) => [Number(v).toLocaleString(), "Total Views"]} labelFormatter={(l) => l} />
+              <Line type="monotone" dataKey="totalViews" stroke="hsl(0, 65%, 50%)" strokeWidth={2} dot={chartData.length < 20} />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Weekly gain chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Weekly View Gain
+            <InfoTip text="New views gained each week — the difference between consecutive snapshots." />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={chartData.filter((r) => r.weeklyGain !== null)} margin={{ top: 5, right: 20, bottom: 5, left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="displayDate" tick={{ fontSize: 10 }} />
+              <YAxis tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+              <Tooltip formatter={(v) => [Number(v).toLocaleString(), "Views Gained"]} labelFormatter={(l) => l} />
+              <Bar dataKey="weeklyGain" name="Views Gained" fill="hsl(220, 65%, 50%)" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Data table — newest first */}
+      <Card>
+        <CardHeader><CardTitle>Weekly Data Table</CardTitle></CardHeader>
+        <CardContent>
+          <div className="rounded-md border overflow-auto max-h-[500px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Total Views</TableHead>
+                  <TableHead className="text-right">Weekly Gain</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        {filtered.length > 500 && (
-          <p className="text-xs text-muted-foreground mt-2 text-center">
-            Showing 500 of {filtered.length.toLocaleString()} rows — use filters to narrow down, or export CSV for the full set.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {[...weeklyData].reverse().map((r) => (
+                  <TableRow key={r.date}>
+                    <TableCell className="text-sm">{r.date}</TableCell>
+                    <TableCell className="text-right">{r.totalViews.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">
+                      {r.weeklyGain !== null ? (
+                        <span className={r.weeklyGain > 0 ? "text-green-600" : "text-muted-foreground"}>
+                          {r.weeklyGain > 0 ? "+" : ""}{r.weeklyGain.toLocaleString()}
+                        </span>
+                      ) : <span className="text-xs text-muted-foreground">first snapshot</span>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
