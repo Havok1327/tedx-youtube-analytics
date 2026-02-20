@@ -937,24 +937,35 @@ function WeeklyReport() {
   // Aggregate or filter to single video, always sorted oldest→newest
   const weeklyData = useMemo((): WeekSummary[] => {
     if (videoFilter === "all") {
-      // Sum totalViews per date, and sum per-video weeklyGains (null = first snapshot, excluded from gain).
-      // This prevents newly-added videos from inflating the gain figure with their historical view counts.
-      const byDate = new Map<string, { totalViews: number; weeklyGain: number; hasGain: boolean }>();
-      for (const r of rawData) {
-        const existing = byDate.get(r.date) || { totalViews: 0, weeklyGain: 0, hasGain: false };
-        existing.totalViews += r.totalViews;
-        if (r.weeklyGain !== null) {
-          existing.weeklyGain += Math.max(0, r.weeklyGain);
-          existing.hasGain = true;
+      // Carry-forward approach: at each date, use every video's MOST RECENT known view count.
+      // Without this, dates where only some videos have snapshots produce a misleading low total,
+      // causing the portfolio total to oscillate and produce phantom negative gains.
+      const sortedRows = [...rawData].sort((a, b) => a.date.localeCompare(b.date));
+      const uniqueDates = [...new Set(sortedRows.map((r) => r.date))];
+      const lastKnown = new Map<number, number>(); // videoId → most recent views
+
+      const result: WeekSummary[] = [];
+      let ri = 0;
+
+      for (const date of uniqueDates) {
+        // Advance carry-forward for every snapshot on this date
+        while (ri < sortedRows.length && sortedRows[ri].date === date) {
+          lastKnown.set(sortedRows[ri].videoId, sortedRows[ri].totalViews);
+          ri++;
         }
-        byDate.set(r.date, existing);
+
+        let total = 0;
+        for (const views of lastKnown.values()) total += views;
+
+        const prev = result.length > 0 ? result[result.length - 1].totalViews : null;
+        result.push({
+          date,
+          totalViews: total,
+          weeklyGain: prev !== null ? total - prev : null,
+        });
       }
-      const sorted = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-      return sorted.map(([date, { totalViews, weeklyGain, hasGain }]) => ({
-        date,
-        totalViews,
-        weeklyGain: hasGain ? weeklyGain : null,
-      }));
+
+      return result;
     } else {
       const rows = rawData
         .filter((r) => r.videoId.toString() === videoFilter)
@@ -962,7 +973,7 @@ function WeeklyReport() {
       return rows.map((r) => ({
         date: r.date,
         totalViews: r.totalViews,
-        weeklyGain: r.weeklyGain !== null ? Math.max(0, r.weeklyGain) : null,
+        weeklyGain: r.weeklyGain,
       }));
     }
   }, [rawData, videoFilter]);
