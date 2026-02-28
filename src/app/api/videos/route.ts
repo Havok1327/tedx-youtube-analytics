@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { videos, events, speakers, videoSpeakers } from "@/db/schema";
-import { eq, desc, ne } from "drizzle-orm";
+import { eq, desc, ne, sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +67,37 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Error fetching videos:", error);
     return NextResponse.json({ error: "Failed to fetch videos" }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { action } = body;
+
+    if (action === "clear-exclusions") {
+      const result = await db
+        .update(videos)
+        .set({ excludeFromCharts: 0 })
+        .where(eq(videos.excludeFromCharts, 1));
+
+      const remaining = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(videos)
+        .where(eq(videos.excludeFromCharts, 1))
+        .get();
+
+      return NextResponse.json({
+        success: true,
+        message: "All exclusions removed",
+        excludedRemaining: remaining?.count ?? 0,
+      });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (error) {
+    console.error("Error in PATCH /api/videos:", error);
+    return NextResponse.json({ error: "Failed to update videos" }, { status: 500 });
   }
 }
 
