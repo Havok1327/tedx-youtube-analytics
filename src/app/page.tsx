@@ -6,7 +6,7 @@ import { TopPerformersChart } from "@/components/dashboard/top-performers-chart"
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { EventComparisonChart } from "@/components/dashboard/event-comparison-chart";
 import { Milestones } from "@/components/dashboard/milestones";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 interface OverviewData {
   summary: {
@@ -24,9 +24,8 @@ interface OverviewData {
 export default function Dashboard() {
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshResult, setRefreshResult] = useState<string | null>(null);
   const [includeExcluded, setIncludeExcluded] = useState(false);
+  const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null);
 
   const fetchData = async (incExcluded: boolean) => {
     try {
@@ -46,26 +45,14 @@ export default function Dashboard() {
     fetchData(includeExcluded);
   }, [includeExcluded]);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    setRefreshResult(null);
-    try {
-      const res = await fetch("/api/refresh", { method: "POST" });
-      const result = await res.json();
-      if (res.ok) {
-        setRefreshResult(
-          `Updated ${result.updated}/${result.total} videos. ${result.errors.length} errors.`
-        );
-        fetchData(includeExcluded);
-      } else {
-        setRefreshResult(`Error: ${result.error || "Unknown error"}`);
-      }
-    } catch (error) {
-      setRefreshResult(`Error: ${error}`);
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((settings) => {
+        if (settings.last_refresh_at) setLastRefreshAt(settings.last_refresh_at);
+      })
+      .catch(() => {});
+  }, []);
 
   if (loading) {
     return (
@@ -91,9 +78,6 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <div className="flex items-center gap-3">
-          {refreshResult && (
-            <span className="text-sm text-muted-foreground">{refreshResult}</span>
-          )}
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
             <input
               type="checkbox"
@@ -103,10 +87,14 @@ export default function Dashboard() {
             />
             Show excluded
           </label>
-          <Button onClick={handleRefresh} disabled={refreshing} variant="outline">
-            {refreshing ? "Refreshing..." : "Refresh All Stats"}
-          </Button>
-          <span className="text-xs text-muted-foreground">Use sparingly — YouTube limits API calls per day.</span>
+          {lastRefreshAt && (
+            <span className="text-xs text-muted-foreground">
+              Last refreshed: {new Date(lastRefreshAt).toLocaleDateString()}
+            </span>
+          )}
+          <Link href="/manage" className="text-xs text-primary hover:underline">
+            Refresh Stats &rarr;
+          </Link>
         </div>
       </div>
 

@@ -905,17 +905,19 @@ interface WeeklyRow {
   weeklyGain: number | null;
 }
 
-function WeeklyReport() {
+function WeeklyReport({ includeExcluded }: { includeExcluded: boolean }) {
   const [rawData, setRawData] = useState<WeeklyRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/stats/weekly")
+    setLoading(true);
+    const url = includeExcluded ? "/api/stats/weekly?includeExcluded=true" : "/api/stats/weekly";
+    fetch(url)
       .then((r) => { if (!r.ok) throw new Error("Failed"); return r.json(); })
       .then(setRawData)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [includeExcluded]);
 
   // Group by Sun–Sat calendar week, compute gain from consecutive week totals
   const weeks = useMemo(() => {
@@ -935,24 +937,38 @@ function WeeklyReport() {
       byWeek.set(weekKey, existing);
     }
 
-    const result = [...byWeek.entries()]
+    // Build week entries with per-video max views
+    const weekEntries = [...byWeek.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([weekStart, { rows, weekEnd }]) => {
-        // Sum each video's highest view count seen this week
         const maxByVideo = new Map<number, number>();
         for (const r of rows) {
           maxByVideo.set(r.videoId, Math.max(maxByVideo.get(r.videoId) ?? 0, r.totalViews));
         }
         const totalViews = [...maxByVideo.values()].reduce((a, b) => a + b, 0);
-        return { weekStart, weekEnd, totalViews, weeklyGain: null as number | null };
+        return { weekStart, weekEnd, totalViews, maxByVideo, weeklyGain: null as number | null };
       });
 
-    // Gain = difference of consecutive week totals (avoids null first-snapshot issues)
-    for (let i = 1; i < result.length; i++) {
-      result[i].weeklyGain = result[i].totalViews - result[i - 1].totalViews;
+    // Gain = only sum diffs for videos present in BOTH consecutive weeks
+    // This prevents new-video inflation (a video added with 500K views
+    // shouldn't appear as +500K gained that week)
+    for (let i = 1; i < weekEntries.length; i++) {
+      const curr = weekEntries[i].maxByVideo;
+      const prev = weekEntries[i - 1].maxByVideo;
+      let gain = 0;
+      for (const [videoId, currViews] of curr) {
+        const prevViews = prev.get(videoId);
+        if (prevViews !== undefined) {
+          // Video existed in both weeks — count the real growth
+          gain += currViews - prevViews;
+        }
+        // If video is new this week, don't count its views as "gained"
+      }
+      weekEntries[i].weeklyGain = gain;
     }
 
-    return result;
+    // Strip maxByVideo from the result (only needed for calculation)
+    return weekEntries.map(({ maxByVideo: _, ...rest }) => rest);
   }, [rawData]);
 
   const exportCsv = useCallback(() => {
@@ -1028,11 +1044,13 @@ function WeeklyReport() {
                       {new Date(w.weekEnd + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {w.weeklyGain !== null && w.weeklyGain > 0
-                        ? <span className="text-green-600">+{w.weeklyGain.toLocaleString()}</span>
-                        : w.weeklyGain === 0
-                          ? <span className="text-muted-foreground">+0</span>
-                          : <span className="text-muted-foreground">—</span>}
+                      {w.weeklyGain === null
+                        ? <span className="text-muted-foreground">—</span>
+                        : w.weeklyGain > 0
+                          ? <span className="text-green-600">+{w.weeklyGain.toLocaleString()}</span>
+                          : w.weeklyGain < 0
+                            ? <span className="text-red-500">{w.weeklyGain.toLocaleString()}</span>
+                            : <span className="text-muted-foreground">0</span>}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {w.totalViews.toLocaleString()}
@@ -1099,7 +1117,7 @@ export default function AnalyticsPage() {
           <EventTrends includeExcluded={includeExcluded} />
         </TabsContent>
         <TabsContent value="weekly" className="mt-4">
-          <WeeklyReport />
+          <WeeklyReport includeExcluded={includeExcluded} />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { videos, events, speakers, videoSpeakers, statsHistory } from "@/db/schema";
+import { videos, events, speakers, videoSpeakers, statsHistory, videoCategories, categories, clips } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +59,39 @@ export async function GET(
       .orderBy(asc(statsHistory.recordedAt))
       .all();
 
+    // Fetch categories for this video
+    const videoCats = await db
+      .select({
+        categoryId: categories.id,
+        slug: categories.slug,
+        name: categories.name,
+        isPrimary: videoCategories.isPrimary,
+        relevanceScore: videoCategories.relevanceScore,
+      })
+      .from(videoCategories)
+      .innerJoin(categories, eq(categories.id, videoCategories.categoryId))
+      .where(eq(videoCategories.videoId, videoId))
+      .all();
+
+    // Fetch clips from this video
+    const videoClips = await db
+      .select({
+        clipId: clips.id,
+        categoryId: clips.categoryId,
+        categoryName: categories.name,
+        categorySlug: categories.slug,
+        startTime: clips.startTime,
+        endTime: clips.endTime,
+        description: clips.description,
+        quoteSnippet: clips.quoteSnippet,
+        relevanceScore: clips.relevanceScore,
+      })
+      .from(clips)
+      .innerJoin(categories, eq(categories.id, clips.categoryId))
+      .where(eq(clips.videoId, videoId))
+      .orderBy(asc(clips.startTime))
+      .all();
+
     const ageDays = video.publishedAt
       ? Math.max(1, Math.floor((Date.now() - new Date(video.publishedAt).getTime()) / 86400000))
       : null;
@@ -69,6 +102,14 @@ export async function GET(
       history,
       ageInDays: ageDays,
       viewsPerDay: ageDays && video.views ? Math.round((video.views / ageDays) * 10) / 10 : null,
+      categories: videoCats,
+      clips: videoClips.map((c) => ({
+        ...c,
+        startTimestamp: formatTimestamp(c.startTime),
+        endTimestamp: formatTimestamp(c.endTime),
+        durationSeconds: Math.round((c.endTime - c.startTime) * 10) / 10,
+        youtubeUrl: `https://www.youtube.com/watch?v=${video.youtubeId}&t=${Math.floor(c.startTime)}`,
+      })),
     });
   } catch (error) {
     console.error("Error fetching video:", error);
@@ -136,4 +177,12 @@ export async function DELETE(
     console.error("Error deleting video:", error);
     return NextResponse.json({ error: "Failed to delete video" }, { status: 500 });
   }
+}
+
+function formatTimestamp(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }

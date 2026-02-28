@@ -31,6 +31,30 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+interface VideoCategory {
+  categoryId: number;
+  slug: string;
+  name: string;
+  isPrimary: number;
+  relevanceScore: number | null;
+}
+
+interface VideoClip {
+  clipId: number;
+  categoryId: number;
+  categoryName: string;
+  categorySlug: string;
+  startTime: number;
+  endTime: number;
+  startTimestamp: string;
+  endTimestamp: string;
+  durationSeconds: number;
+  description: string | null;
+  quoteSnippet: string | null;
+  relevanceScore: number | null;
+  youtubeUrl: string;
+}
+
 interface VideoDetail {
   id: number;
   youtubeId: string;
@@ -47,6 +71,8 @@ interface VideoDetail {
   history: { id: number; views: number; likes: number; recordedAt: string }[];
   ageInDays: number | null;
   viewsPerDay: number | null;
+  categories?: VideoCategory[];
+  clips?: VideoClip[];
 }
 
 interface EventOption {
@@ -307,6 +333,80 @@ export default function VideoDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Categories */}
+      {video.categories && video.categories.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Categories ({video.categories.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {video.categories.map((cat) => (
+                <Link key={cat.categoryId} href={`/categories/${cat.slug}`}>
+                  <Badge
+                    variant={cat.isPrimary ? "default" : "secondary"}
+                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                  >
+                    {cat.name}
+                    {cat.relevanceScore != null && (
+                      <span className="ml-1 opacity-70">
+                        {Math.round(cat.relevanceScore * 100)}%
+                      </span>
+                    )}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Clips */}
+      {video.clips && video.clips.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Identified Clips ({video.clips.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {video.clips.map((clip) => (
+                <div key={clip.clipId} className="border rounded-lg p-3 hover:border-red-300 transition-colors">
+                  <div className="flex items-center justify-between mb-1">
+                    <Link href={`/categories/${clip.categorySlug}`}>
+                      <Badge variant="outline" className="cursor-pointer hover:bg-accent">
+                        {clip.categoryName}
+                      </Badge>
+                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">
+                        {clip.startTimestamp} - {clip.endTimestamp}
+                      </Badge>
+                      <Badge variant="outline">{clip.durationSeconds}s</Badge>
+                    </div>
+                  </div>
+                  {clip.description && (
+                    <p className="text-sm text-muted-foreground mb-1">{clip.description}</p>
+                  )}
+                  {clip.quoteSnippet && (
+                    <blockquote className="text-sm italic border-l-2 border-red-300 pl-3 mb-1">
+                      &ldquo;{clip.quoteSnippet}&rdquo;
+                    </blockquote>
+                  )}
+                  <a
+                    href={clip.youtubeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-red-600 hover:underline"
+                  >
+                    Watch at {clip.startTimestamp} &rarr;
+                  </a>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

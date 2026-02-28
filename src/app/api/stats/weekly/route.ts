@@ -1,12 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { statsHistory, videos, events, speakers, videoSpeakers } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, ne, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const searchParams = request.nextUrl.searchParams;
+    const includeExcluded = searchParams.get("includeExcluded") === "true";
+    const excludeFilter = includeExcluded ? undefined : ne(videos.excludeFromCharts, 1);
+
     const rows = await db
       .select({
         recordedAt: statsHistory.recordedAt,
@@ -18,6 +22,7 @@ export async function GET() {
       .from(statsHistory)
       .innerJoin(videos, eq(statsHistory.videoId, videos.id))
       .leftJoin(events, eq(videos.eventId, events.id))
+      .where(excludeFilter ? and(excludeFilter) : undefined)
       .orderBy(asc(statsHistory.videoId), asc(statsHistory.recordedAt))
       .all();
 
