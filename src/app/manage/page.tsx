@@ -27,9 +27,18 @@ interface Speaker {
   lastName: string;
 }
 
+interface VideoItem {
+  id: number;
+  title: string | null;
+  eventName: string | null;
+  speakers: { id: number; firstName: string; lastName: string }[];
+}
+
 export default function ManagePage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
+  const [videos, setVideos] = useState<VideoItem[]>([]);
+  const [videoSearch, setVideoSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   // New event form
@@ -120,9 +129,10 @@ export default function ManagePage() {
 
   const fetchData = async () => {
     try {
-      const [evtsRes, spksRes] = await Promise.all([
+      const [evtsRes, spksRes, vidsRes] = await Promise.all([
         fetch("/api/events"),
         fetch("/api/speakers"),
+        fetch("/api/videos?includeExcluded=true"),
       ]);
       if (!evtsRes.ok || !spksRes.ok) {
         console.error("API error:", evtsRes.status, spksRes.status);
@@ -130,15 +140,32 @@ export default function ManagePage() {
         setSpeakers([]);
         return;
       }
-      const [evts, spks] = await Promise.all([evtsRes.json(), spksRes.json()]);
+      const [evts, spks, vids] = await Promise.all([evtsRes.json(), spksRes.json(), vidsRes.ok ? vidsRes.json() : []]);
       setEvents(Array.isArray(evts) ? evts : []);
       setSpeakers(Array.isArray(spks) ? spks : []);
+      setVideos(Array.isArray(vids) ? vids : []);
     } catch (err) {
       console.error("Failed to fetch data:", err);
       setEvents([]);
       setSpeakers([]);
+      setVideos([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteVideo = async (id: number, title: string | null) => {
+    if (!confirm(`Delete "${title || "this video"}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/videos/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        fetchData();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete video");
+      }
+    } catch {
+      alert("Failed to delete video");
     }
   };
 
@@ -533,6 +560,50 @@ export default function ManagePage() {
         {/* ── Videos Tab ───────────────────────────────────────── */}
         <TabsContent value="videos" className="space-y-6">
           <VideoForm events={events} speakers={speakers} onSuccess={fetchData} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Remove a Video ({videos.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Input
+                placeholder="Search by title, speaker, or event..."
+                value={videoSearch}
+                onChange={(e) => setVideoSearch(e.target.value)}
+                className="max-w-sm"
+              />
+              <div className="max-h-80 overflow-y-auto space-y-1 rounded-md border p-2">
+                {videos
+                  .filter((v) => {
+                    if (!videoSearch.trim()) return true;
+                    const q = videoSearch.toLowerCase();
+                    const speakerNames = v.speakers.map((s) => `${s.firstName} ${s.lastName}`).join(" ");
+                    return (
+                      v.title?.toLowerCase().includes(q) ||
+                      v.eventName?.toLowerCase().includes(q) ||
+                      speakerNames.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((v) => (
+                    <div key={v.id} className="flex items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-accent">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{v.title || "Untitled"}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {v.speakers.map((s) => `${s.firstName} ${s.lastName}`).join(", ") || "No speaker"}
+                          {v.eventName ? ` · ${v.eventName}` : ""}
+                        </p>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteVideo(v.id, v.title)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ── Events & Speakers Tab ────────────────────────────── */}
