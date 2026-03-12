@@ -80,6 +80,12 @@ interface EventOption {
   name: string;
 }
 
+interface SpeakerOption {
+  id: number;
+  firstName: string;
+  lastName: string;
+}
+
 export default function VideoDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -91,7 +97,9 @@ export default function VideoDetailPage() {
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false);
   const [events, setEvents] = useState<EventOption[]>([]);
+  const [speakers, setSpeakers] = useState<SpeakerOption[]>([]);
   const [editEventId, setEditEventId] = useState<string>("");
+  const [editSpeakerIds, setEditSpeakerIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -116,14 +124,25 @@ export default function VideoDetailPage() {
   const openEditDialog = async () => {
     setEditError(null);
     setEditEventId(video?.eventId?.toString() || "");
+    setEditSpeakerIds(video?.speakers.map((s) => s.id.toString()) || []);
     setEditOpen(true);
 
     try {
-      const res = await fetch("/api/events");
-      if (res.ok) setEvents(await res.json());
+      const [eventsRes, speakersRes] = await Promise.all([
+        fetch("/api/events"),
+        fetch("/api/speakers"),
+      ]);
+      if (eventsRes.ok) setEvents(await eventsRes.json());
+      if (speakersRes.ok) setSpeakers(await speakersRes.json());
     } catch {
-      setEditError("Failed to load events");
+      setEditError("Failed to load data");
     }
+  };
+
+  const toggleEditSpeaker = (id: string) => {
+    setEditSpeakerIds((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
+    );
   };
 
   const handleSave = async () => {
@@ -137,6 +156,7 @@ export default function VideoDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: editEventId && editEventId !== "none" ? parseInt(editEventId) : null,
+          speakerIds: editSpeakerIds.map((s) => parseInt(s)),
         }),
       });
       if (res.ok) {
@@ -450,7 +470,7 @@ export default function VideoDetailPage() {
         <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Edit Video</DialogTitle>
-            <DialogDescription>Change the event assignment for this video.</DialogDescription>
+            <DialogDescription>Change the event and speaker assignments for this video.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
@@ -468,6 +488,26 @@ export default function VideoDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Speaker(s)</Label>
+              <div className="flex flex-wrap gap-2">
+                {speakers.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => toggleEditSpeaker(s.id.toString())}
+                    className={`px-2 py-1 text-xs rounded-md border transition-colors ${
+                      editSpeakerIds.includes(s.id.toString())
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background hover:bg-accent border-border"
+                    }`}
+                  >
+                    {s.firstName} {s.lastName}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {editError && <p className="text-sm text-destructive">{editError}</p>}
