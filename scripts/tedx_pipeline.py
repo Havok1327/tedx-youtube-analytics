@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from transcript_api import get_transcript, format_timestamp
 from claude_api import call_claude, call_claude_json
+from text_utils import correct_timestamps
 
 # ─── Database Connection ──────────────────────────────────────────────
 
@@ -597,11 +598,27 @@ def run_phase3(conn):
             if not isinstance(raw_clips, list):
                 raw_clips = [raw_clips]
 
+            # Build a lookup of entries per video_id for timestamp correction
+            entries_by_vid = {
+                vid_id: json.loads(entries_json)
+                for vid_id, _, _, entries_json in video_rows
+            }
+
             now = datetime.now(timezone.utc).isoformat()
             for clip in raw_clips:
                 vid_id = clip.get("video_id")
                 if vid_id is None:
                     continue
+
+                # Correct timestamps using transcript entries
+                quote = clip.get("quote_snippet", "")
+                start_time = clip.get("start_time", 0)
+                end_time = clip.get("end_time", 0)
+                entries = entries_by_vid.get(vid_id, [])
+                corrected = correct_timestamps(quote, entries) if quote and entries else None
+                if corrected:
+                    start_time, end_time = corrected
+
                 conn.execute(
                     """INSERT INTO clips
                        (video_id, category_id, start_time, end_time,
@@ -610,10 +627,10 @@ def run_phase3(conn):
                     (
                         vid_id,
                         cat_id,
-                        clip.get("start_time", 0),
-                        clip.get("end_time", 0),
+                        start_time,
+                        end_time,
                         clip.get("description", ""),
-                        clip.get("quote_snippet", ""),
+                        quote,
                         clip.get("relevance_score", 0),
                         now,
                     ),
