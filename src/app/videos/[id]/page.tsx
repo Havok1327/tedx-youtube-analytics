@@ -100,6 +100,7 @@ export default function VideoDetailPage() {
   const [speakers, setSpeakers] = useState<SpeakerOption[]>([]);
   const [editEventId, setEditEventId] = useState<string>("");
   const [editSpeakerIds, setEditSpeakerIds] = useState<string[]>([]);
+  const [speakerSearch, setSpeakerSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -492,22 +493,48 @@ export default function VideoDetailPage() {
 
             <div className="space-y-2">
               <Label>Speaker(s)</Label>
-              <div className="flex flex-wrap gap-2">
-                {speakers.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => toggleEditSpeaker(s.id.toString())}
-                    className={`px-2 py-1 text-xs rounded-md border transition-colors ${
-                      editSpeakerIds.includes(s.id.toString())
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background hover:bg-accent border-border"
-                    }`}
-                  >
-                    {s.firstName} {s.lastName}
-                  </button>
-                ))}
-              </div>
+              {editSpeakerIds.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {editSpeakerIds.map((id) => {
+                    const s = speakers.find((sp) => sp.id.toString() === id);
+                    if (!s) return null;
+                    return (
+                      <span key={id} className="flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary text-primary-foreground">
+                        {s.firstName} {s.lastName}
+                        <button type="button" onClick={() => toggleEditSpeaker(id)} className="opacity-70 hover:opacity-100">&times;</button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              <Input
+                placeholder="Search speakers..."
+                value={speakerSearch}
+                onChange={(e) => setSpeakerSearch(e.target.value)}
+              />
+              {speakerSearch.trim() && (
+                <div className="max-h-40 overflow-y-auto rounded-md border bg-background">
+                  {speakers
+                    .filter((s) => {
+                      const q = speakerSearch.toLowerCase();
+                      return `${s.firstName} ${s.lastName}`.toLowerCase().includes(q);
+                    })
+                    .map((s) => {
+                      const sid = s.id.toString();
+                      const selected = editSpeakerIds.includes(sid);
+                      return (
+                        <button
+                          key={sid}
+                          type="button"
+                          onClick={() => { toggleEditSpeaker(sid); setSpeakerSearch(""); }}
+                          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent transition-colors ${selected ? "font-medium" : ""}`}
+                        >
+                          {selected ? "✓ " : ""}{s.firstName} {s.lastName}
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
             </div>
 
             {editError && <p className="text-sm text-destructive">{editError}</p>}
