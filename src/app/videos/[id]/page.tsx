@@ -56,6 +56,18 @@ interface VideoClip {
   youtubeUrl: string;
 }
 
+interface VideoKeyMoment {
+  id: number;
+  quoteText: string;
+  context: string | null;
+  startTime: number;
+  endTime: number;
+  startTimestamp: string;
+  endTimestamp: string;
+  durationSeconds: number;
+  youtubeUrl: string;
+}
+
 interface VideoDetail {
   id: number;
   youtubeId: string;
@@ -74,6 +86,9 @@ interface VideoDetail {
   viewsPerDay: number | null;
   categories?: VideoCategory[];
   clips?: VideoClip[];
+  keyMoments?: VideoKeyMoment[];
+  themes?: string[];
+  tone?: string | null;
 }
 
 interface EventOption {
@@ -378,6 +393,59 @@ export default function VideoDetailPage() {
                     )}
                   </Badge>
                 </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Themes */}
+      {video.themes && video.themes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Themes{video.tone ? <span className="ml-2 text-sm font-normal text-muted-foreground">· {video.tone}</span> : null}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {video.themes.map((theme) => (
+                <Badge key={theme} variant="secondary">{theme}</Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Key Moments */}
+      {video.keyMoments && video.keyMoments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Key Moments ({video.keyMoments.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {video.keyMoments.map((moment) => (
+                <div key={moment.id} className="border rounded-lg p-3 hover:border-red-300 transition-colors">
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge variant="secondary">
+                      {moment.startTimestamp} - {moment.endTimestamp}
+                    </Badge>
+                    <Badge variant="outline">{moment.durationSeconds}s</Badge>
+                  </div>
+                  <blockquote className="text-sm italic border-l-2 border-red-300 pl-3 mb-2">
+                    &ldquo;{moment.quoteText}&rdquo;
+                  </blockquote>
+                  {moment.context && (
+                    <p className="text-xs text-muted-foreground mb-2">{moment.context}</p>
+                  )}
+                  <a
+                    href={moment.youtubeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-red-600 hover:underline"
+                  >
+                    Watch at {moment.startTimestamp} &rarr;
+                  </a>
+                </div>
               ))}
             </div>
           </CardContent>

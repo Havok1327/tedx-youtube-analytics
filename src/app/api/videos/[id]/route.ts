@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { videos, events, speakers, videoSpeakers, statsHistory, videoCategories, categories, clips } from "@/db/schema";
+import { videos, events, speakers, videoSpeakers, statsHistory, videoCategories, categories, clips, videoKeyMoments, videoSummaries } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -92,6 +92,21 @@ export async function GET(
       .orderBy(asc(clips.startTime))
       .all();
 
+    // Fetch key moments for this video
+    const keyMoments = await db
+      .select()
+      .from(videoKeyMoments)
+      .where(eq(videoKeyMoments.videoId, videoId))
+      .orderBy(asc(videoKeyMoments.startTime))
+      .all();
+
+    // Fetch video summary (themes, tone)
+    const summary = await db
+      .select()
+      .from(videoSummaries)
+      .where(eq(videoSummaries.videoId, videoId))
+      .get();
+
     const ageDays = video.publishedAt
       ? Math.max(1, Math.floor((Date.now() - new Date(video.publishedAt).getTime()) / 86400000))
       : null;
@@ -103,6 +118,19 @@ export async function GET(
       ageInDays: ageDays,
       viewsPerDay: ageDays && video.views ? Math.round((video.views / ageDays) * 10) / 10 : null,
       categories: videoCats,
+      themes: summary?.themes ? JSON.parse(summary.themes) : [],
+      tone: summary?.tone ?? null,
+      keyMoments: keyMoments.map((m) => ({
+        id: m.id,
+        quoteText: m.quoteText,
+        context: m.context,
+        startTime: m.startTime,
+        endTime: m.endTime,
+        startTimestamp: formatTimestamp(m.startTime),
+        endTimestamp: formatTimestamp(m.endTime),
+        durationSeconds: Math.round((m.endTime - m.startTime) * 10) / 10,
+        youtubeUrl: `https://www.youtube.com/watch?v=${video.youtubeId}&t=${Math.floor(m.startTime)}`,
+      })),
       clips: videoClips.map((c) => ({
         ...c,
         startTimestamp: formatTimestamp(c.startTime),

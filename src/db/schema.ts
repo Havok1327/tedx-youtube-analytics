@@ -119,3 +119,15 @@ export const clips = sqliteTable("clips", {
   relevanceScore: real("relevance_score").default(0),
   generatedAt: text("generated_at").notNull(),
 });
+
+export const videoKeyMoments = sqliteTable("video_key_moments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  videoId: integer("video_id")
+    .notNull()
+    .references(() => videos.id, { onDelete: "cascade" }),
+  quoteText: text("quote_text").notNull(),
+  context: text("context"),
+  startTime: real("start_time").notNull(),
+  endTime: real("end_time").notNull(),
+  generatedAt: text("generated_at").notNull(),
+});

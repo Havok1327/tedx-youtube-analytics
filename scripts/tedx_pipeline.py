@@ -9,8 +9,9 @@ Usage:
     python scripts/tedx_pipeline.py phase1              # Fetch transcripts (backup, web app preferred)
     python scripts/tedx_pipeline.py phase2              # Summarize + categorize + tag (requires Claude CLI)
     python scripts/tedx_pipeline.py phase3              # Find clips per category (requires Claude CLI)
+    python scripts/tedx_pipeline.py phase4              # Extract key moments per video (requires Claude CLI)
     python scripts/tedx_pipeline.py run-all             # All phases
-    python scripts/tedx_pipeline.py status              # Show progress
+    python scripts/tedx_pipeline.py status              # Show pipeline status
     python scripts/tedx_pipeline.py reset --phase N     # Reset a phase
 """
 
@@ -104,6 +105,16 @@ def ensure_tables(conn):
             description TEXT,
             quote_snippet TEXT,
             relevance_score REAL DEFAULT 0,
+            generated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS video_key_moments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+            quote_text TEXT NOT NULL,
+            context TEXT,
+            start_time REAL NOT NULL,
+            end_time REAL NOT NULL,
             generated_at TEXT NOT NULL
         );
     """)
@@ -648,6 +659,127 @@ def run_phase3(conn):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# PHASE 4: Per-Video Key Moments
+# ═══════════════════════════════════════════════════════════════════════
+
+KEY_MOMENTS_PER_VIDEO = 5
+KEY_MOMENTS_BATCH_SIZE = 3
+
+KEY_MOMENTS_PROMPT = """You are a video production assistant helping identify the best quotable moments from TEDx talks.
+
+For each talk below, identify the {moments_count} most compelling, quotable moments. Choose moments that are:
+- Emotionally resonant or surprising
+- A clear, standalone insight or statement
+- Useful for promotional clips or highlights
+
+For each moment provide:
+- video_id: the VIDEO_ID shown before the transcript
+- quote_text: verbatim text from the transcript (at least 20 words, copy exactly as written)
+- context: one sentence explaining why this moment is notable
+
+Return a JSON array. Each element must have exactly these keys: video_id, quote_text, context
+
+{transcripts_block}"""
+
+
+def run_phase4(conn):
+    """Extract 5 key moments per video using Claude."""
+    logger = logging.getLogger("phase4")
+
+    # Get videos with transcripts that don't have key moments yet
+    rows = conn.execute("""
+        SELECT v.id, v.title, t.entries
+        FROM videos v
+        JOIN transcripts t ON t.video_id = v.id
+        LEFT JOIN video_key_moments km ON km.video_id = v.id
+        WHERE km.video_id IS NULL
+        ORDER BY v.id
+    """).fetchall()
+
+    if not rows:
+        logger.info("All videos already have key moments.")
+        return {"videos": 0, "moments": 0}
+
+    logger.info(f"Phase 4: Extracting key moments for {len(rows)} videos...")
+    stats = {"videos": 0, "moments": 0}
+
+    for batch_start in range(0, len(rows), KEY_MOMENTS_BATCH_SIZE):
+        batch = rows[batch_start:batch_start + KEY_MOMENTS_BATCH_SIZE]
+        progress(batch_start + len(batch), len(rows), "  Key moments")
+
+        # Build transcript blocks for this batch
+        blocks = []
+        entries_by_vid = {}
+        for vid_id, title, entries_json in batch:
+            entries = json.loads(entries_json)
+            entries_by_vid[vid_id] = entries
+
+            lines = [f"VIDEO_ID: {vid_id} | TITLE: {title}"]
+            # Limit per video to stay within context
+            total_chars = 0
+            for entry in entries:
+                ts = format_timestamp(entry["start"])
+                line = f"[{ts}] {entry['text']}"
+                total_chars += len(line)
+                if total_chars > 40000:
+                    break
+                lines.append(line)
+            blocks.append("\n".join(lines))
+
+        transcripts_block = "\n\n===\n\n".join(blocks)
+        prompt = KEY_MOMENTS_PROMPT.format(
+            moments_count=KEY_MOMENTS_PER_VIDEO,
+            transcripts_block=transcripts_block,
+        )
+
+        try:
+            raw_moments = call_claude_json(prompt, timeout=240)
+            if not isinstance(raw_moments, list):
+                raw_moments = [raw_moments]
+
+            now = datetime.now(timezone.utc).isoformat()
+            for moment in raw_moments:
+                vid_id = moment.get("video_id")
+                if vid_id is None:
+                    continue
+
+                quote = moment.get("quote_text", "")
+                entries = entries_by_vid.get(vid_id, [])
+                corrected = correct_timestamps(quote, entries) if quote and entries else None
+                start_time = corrected[0] if corrected else 0
+                end_time = corrected[1] if corrected else 0
+
+                if not corrected:
+                    logger.warning(f"  No timestamp match for video {vid_id}: {quote[:50]!r}")
+
+                conn.execute(
+                    """INSERT INTO video_key_moments
+                       (video_id, quote_text, context, start_time, end_time, generated_at)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (
+                        vid_id,
+                        quote,
+                        moment.get("context", ""),
+                        start_time,
+                        end_time,
+                        now,
+                    ),
+                )
+
+            conn.commit()
+            stats["videos"] += len(batch)
+            stats["moments"] += len(raw_moments)
+            logger.info(f"    Batch {batch_start // KEY_MOMENTS_BATCH_SIZE + 1}: {len(raw_moments)} moments")
+
+        except Exception as e:
+            logger.error(f"  Key moments failed for batch starting at {batch_start}: {e}")
+
+    print()  # newline after progress bar
+    logger.info(f"Phase 4 complete: {stats}")
+    return stats
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # Status & Reset
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -661,6 +793,10 @@ def show_status(conn):
         "SELECT COUNT(DISTINCT video_id) FROM video_categories"
     ).fetchone()[0]
     total_clips = conn.execute("SELECT COUNT(*) FROM clips").fetchone()[0]
+    total_key_moments = conn.execute("SELECT COUNT(*) FROM video_key_moments").fetchone()[0]
+    videos_with_moments = conn.execute(
+        "SELECT COUNT(DISTINCT video_id) FROM video_key_moments"
+    ).fetchone()[0]
 
     print(f"\n{'='*60}")
     print("TEDx Pipeline Status")
@@ -671,6 +807,7 @@ def show_status(conn):
     print(f"  Phase 2 - Categories:  {total_categories}")
     print(f"  Phase 2 - Tagged:      {total_tagged}/{total_summaries}")
     print(f"  Phase 3 - Clips:       {total_clips}")
+    print(f"  Phase 4 - Key Moments: {total_key_moments} ({videos_with_moments}/{total_videos} videos)")
     print(f"{'='*60}\n")
 
     if total_categories > 0:
@@ -700,6 +837,9 @@ def reset_phase(conn, phase: int):
     elif phase == 3:
         conn.execute("DELETE FROM clips")
         print("Phase 3 reset: All clips deleted.")
+    elif phase == 4:
+        conn.execute("DELETE FROM video_key_moments")
+        print("Phase 4 reset: All key moments deleted.")
     else:
         print(f"Invalid phase: {phase}")
         return
@@ -725,11 +865,12 @@ def main():
                     help="Force re-discovery of categories")
 
     sub.add_parser("phase3", help="Identify clips per category")
+    sub.add_parser("phase4", help="Extract key moments per video")
     sub.add_parser("run-all", help="Run the full pipeline")
     sub.add_parser("status", help="Show pipeline status")
 
     rs = sub.add_parser("reset", help="Reset a phase's data")
-    rs.add_argument("--phase", type=int, required=True, choices=[1, 2, 3])
+    rs.add_argument("--phase", type=int, required=True, choices=[1, 2, 3, 4])
 
     args = parser.parse_args()
     setup_logging(verbose=args.verbose)
@@ -743,6 +884,8 @@ def main():
         run_phase2(conn, force_categories=args.force)
     elif args.command == "phase3":
         run_phase3(conn)
+    elif args.command == "phase4":
+        run_phase4(conn)
     elif args.command == "run-all":
         print("\n=== Phase 1: Transcript Collection ===")
         run_phase1(conn)
@@ -750,6 +893,8 @@ def main():
         run_phase2(conn, force_categories=getattr(args, 'force', False))
         print("\n=== Phase 3: Clip Identification ===")
         run_phase3(conn)
+        print("\n=== Phase 4: Key Moments ===")
+        run_phase4(conn)
         print("\nPipeline complete!")
         show_status(conn)
     elif args.command == "status":
