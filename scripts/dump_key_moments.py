@@ -1,4 +1,5 @@
-"""Dump video_key_moments from local.db to key_moments_dump.json for prod push."""
+"""Dump video_key_moments from local.db to key_moments_dump.json for prod push.
+Includes youtube_id so the push script can match by youtube_id instead of video_id."""
 import json, sqlite3
 from pathlib import Path
 
@@ -7,8 +8,11 @@ conn = sqlite3.connect(str(db_path))
 conn.row_factory = sqlite3.Row
 
 rows = conn.execute("""
-    SELECT video_id, quote_text, context, start_time, end_time, generated_at
-    FROM video_key_moments ORDER BY video_id, start_time
+    SELECT km.video_id, v.youtube_id, km.quote_text, km.context,
+           km.start_time, km.end_time, km.generated_at
+    FROM video_key_moments km
+    JOIN videos v ON v.id = km.video_id
+    ORDER BY km.video_id, km.start_time
 """).fetchall()
 conn.close()
 
