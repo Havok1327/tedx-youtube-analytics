@@ -122,7 +122,7 @@ def call_claude(prompt: str, timeout: int | None = None) -> str:
 def call_claude_json(prompt: str, timeout: int | None = None) -> dict | list:
     """
     Call Claude CLI and parse the response as JSON.
-    Handles markdown code fence wrapping.
+    Handles markdown code fence wrapping and extra text after the JSON.
     """
     text = call_claude(prompt, timeout)
 
@@ -132,9 +132,28 @@ def call_claude_json(prompt: str, timeout: int | None = None) -> dict | list:
         lines = [l for l in lines if not l.strip().startswith("```")]
         text = "\n".join(lines)
 
+    # Try parsing directly first
     try:
         return json.loads(text)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(
-            f"Claude did not return valid JSON: {e}\nResponse: {text[:500]}"
-        )
+    except json.JSONDecodeError:
+        pass
+
+    # Fallback: extract the first JSON array or object from the text.
+    # Claude sometimes adds commentary before or after the JSON.
+    for start_char, end_char in [("[", "]"), ("{", "}")]:
+        start = text.find(start_char)
+        if start == -1:
+            continue
+        # Walk from the end to find the matching closing bracket
+        end = text.rfind(end_char)
+        if end == -1 or end <= start:
+            continue
+        candidate = text[start:end + 1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+
+    raise RuntimeError(
+        f"Claude did not return valid JSON.\nResponse: {text[:500]}"
+    )
