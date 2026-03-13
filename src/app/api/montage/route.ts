@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { clips, videos, categories, videoSpeakers, speakers } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { clips, videos, categories, videoSpeakers, speakers, videoKeyMoments } from "@/db/schema";
+import { eq, asc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +46,22 @@ export async function GET() {
       speakersByVideo.set(row.videoId, list);
     }
 
+    // Get all key moments with video info
+    const allKeyMoments = await db
+      .select({
+        momentId: videoKeyMoments.id,
+        videoId: videoKeyMoments.videoId,
+        youtubeId: videos.youtubeId,
+        videoTitle: videos.title,
+        quoteText: videoKeyMoments.quoteText,
+        context: videoKeyMoments.context,
+        startTime: videoKeyMoments.startTime,
+        endTime: videoKeyMoments.endTime,
+      })
+      .from(videoKeyMoments)
+      .innerJoin(videos, eq(videos.id, videoKeyMoments.videoId))
+      .orderBy(asc(videos.title), asc(videoKeyMoments.startTime));
+
     // Group clips by category
     const worksheets = cats.map((cat) => {
       const catClips = allClips
@@ -68,7 +84,33 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json(worksheets);
+    // Group key moments by video
+    const videoMap = new Map<number, { videoId: number; youtubeId: string; videoTitle: string | null; speakers: string[]; moments: typeof allKeyMoments }>();
+    for (const m of allKeyMoments) {
+      if (!videoMap.has(m.videoId)) {
+        videoMap.set(m.videoId, {
+          videoId: m.videoId,
+          youtubeId: m.youtubeId,
+          videoTitle: m.videoTitle,
+          speakers: speakersByVideo.get(m.videoId) || [],
+          moments: [],
+        });
+      }
+      videoMap.get(m.videoId)!.moments.push(m);
+    }
+
+    const keyMomentVideos = Array.from(videoMap.values()).map((v) => ({
+      ...v,
+      moments: v.moments.map((m) => ({
+        ...m,
+        startTimestamp: formatTimestamp(m.startTime),
+        endTimestamp: formatTimestamp(m.endTime),
+        durationSeconds: Math.round((m.endTime - m.startTime) * 10) / 10,
+        youtubeUrl: `https://www.youtube.com/watch?v=${v.youtubeId}&t=${Math.floor(m.startTime)}`,
+      })),
+    }));
+
+    return NextResponse.json({ worksheets, keyMomentVideos });
   } catch (error) {
     console.error("Montage error:", error);
     return NextResponse.json({ error: "Failed to fetch montage data" }, { status: 500 });
