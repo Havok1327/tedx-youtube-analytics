@@ -64,7 +64,7 @@ These are set in the **Vercel dashboard** under Settings > Environment Variables
 Video stats (views, likes, title) are pulled from the YouTube Data API. Each refresh also records a snapshot in the `stats_history` table, which powers all the historical charts.
 
 - **Manual:** Click "Refresh All Stats" on the dashboard or manage page
-- **Automatic:** A Vercel cron job hits `/api/refresh` every Monday at 8:00 AM UTC (configured in `vercel.json`). Can be enabled/disabled from the manage page.
+- **Automatic:** A Vercel cron job hits `/api/refresh` every Wednesday at 8:00 AM UTC (configured in `vercel.json`). Can be enabled/disabled from the manage page.
 
 The YouTube API free tier gives 10,000 quota units/day. Each batch of 50 videos costs ~3 units, so you can refresh thousands of videos per day without hitting limits.
 

@@ -176,6 +176,11 @@ All phases are **incremental** — they skip videos that already have data. Safe
 
 ## Completed Work History
 
+### May 2026 — Weekly Cron Moved Monday → Wednesday
+- Per Sara/London request: shifted the auto-refresh cron from Monday 08:00 UTC to **Wednesday 08:00 UTC** (`vercel.json` schedule `0 8 * * 3`) so reporting on Wednesdays can use fresh numbers.
+- Replacement (not addition) — one refresh per week, just a different day. Manual "Refresh All Stats" button still works any time.
+- Note for future analysis: `stats_history` rows from before mid-May 2026 are Monday-spaced; rows after are Wednesday-spaced. The 7-day cadence is preserved, but the changeover week has ~10 days between snapshots.
+
 ### May 2026 — Dashboard Growth Chart Fix
 - **Bug**: "Aggregate Views Over Time" chart on the dashboard showed view totals dropping back to 2025 levels. Root cause: the chart's x-axis was categorical and labels used `month + day` only, so weekly snapshots from 2025 and 2026 with the same month/day (e.g., "Apr 13") collided into a single x-axis bucket.
 - **Fix** (`src/app/api/stats/overview/route.ts`): added a 12-month cutoff on the `stats_history` query so the chart only ever shows one year's worth of snapshots. Prevents future collisions without changing the axis type.

@@ -409,7 +409,7 @@ export default function ManagePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium">Scheduled Auto-Refresh</p>
-                    <p className="text-xs text-muted-foreground">Runs every Monday at 8:00 AM UTC</p>
+                    <p className="text-xs text-muted-foreground">Runs every Wednesday at 8:00 AM UTC (3:00 AM Central)</p>
                   </div>
                   <Button
                     variant={cronEnabled ? "default" : "outline"}

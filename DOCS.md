@@ -24,7 +24,7 @@ The home screen gives a quick snapshot of the entire library:
 
 **Include Excluded Videos toggle** — Some videos are flagged to be excluded from charts (outliers that would skew the data). This toggle is visible across the dashboard and analytics pages and lets you include or exclude those videos from all calculations.
 
-**Refresh All Stats** button — Manually pulls the latest view/like counts from YouTube for all videos. Use sparingly — YouTube limits API calls to 10,000 quota units per day. Stats also refresh automatically every Monday at 8:00 AM UTC.
+**Refresh All Stats** button — Manually pulls the latest view/like counts from YouTube for all videos. Use sparingly — YouTube limits API calls to 10,000 quota units per day. Stats also refresh automatically every Wednesday at 8:00 AM UTC (3:00 AM Central) so reporting can use fresh numbers.
 
 ---
 
@@ -124,7 +124,7 @@ Admin section with three tabs.
 
 **Refresh YouTube Stats** — Manually triggers a YouTube API pull for all videos. Updates view/like counts and records a new history snapshot.
 
-**Scheduled Auto-Refresh** — Toggle the weekly Monday cron job on or off. Shows when the last refresh ran and its result.
+**Scheduled Auto-Refresh** — Toggle the weekly Wednesday cron job on or off. Shows when the last refresh ran and its result.
 
 **Video Transcripts** — Shows how many videos have transcripts fetched. The **Fetch Missing Transcripts** button retrieves transcripts from YouTube for any video that doesn't have one yet. Transcripts are required for the AI pipeline.
 
@@ -203,4 +203,4 @@ All phases are incremental — they skip videos that already have data, so re-ru
 - **Excluded from Charts** — Videos can be flagged to exclude them from analytics. This is useful for outlier talks (e.g., a viral video that would skew averages). They remain in the system and can be re-included at any time.
 - **Transcript coverage** — 174 of 176 videos have transcripts. 2 videos have no AI data (transcripts unavailable from YouTube).
 - **Timestamp accuracy** — Key Moment and Clip timestamps are matched to the actual transcript timing, not estimated. A small number (~200 out of 870) have `start_time=0` where the quote couldn't be matched to the transcript verbatim.
-- **Stats refresh** — View/like counts update every Monday automatically. The last refresh time is shown on the dashboard and manage page.
+- **Stats refresh** — View/like counts update every Wednesday automatically. The last refresh time is shown on the dashboard and manage page.
