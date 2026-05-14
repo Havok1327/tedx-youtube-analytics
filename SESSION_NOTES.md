@@ -134,6 +134,7 @@ rm .env.production scripts/key_moments_dump.json
 - `scripts/fix_clip_timestamps_prod.js` — Production clip timestamp backfill (queries prod directly)
 - `scripts/dump_key_moments.py` — Dumps key moments from local.db to JSON for prod push
 - `scripts/push_key_moments_prod.js` — Pushes key moments JSON to production (matches by youtube_id)
+- `scripts/validate_april_2026.js` — Exports per-video April 2026 snapshot data to CSV with YouTube URLs for external spot-checking. Prints distinct snapshot dates (catch missing Mondays) and flags anomalies (negative deltas, zero-April-but-nonzero-current).
 
 ### Phases
 1. **Phase 1**: Fetch YouTube transcripts → `transcripts` table

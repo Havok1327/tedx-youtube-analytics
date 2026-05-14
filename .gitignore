@@ -37,6 +37,11 @@ yarn-error.log*
 # local database
 local.db
 
+# transient script outputs (regenerated on demand from prod)
+scripts/april_2026_validation.csv
+scripts/key_moments_dump.json
+scripts/__pycache__/
+
 # vercel
 .vercel
 
