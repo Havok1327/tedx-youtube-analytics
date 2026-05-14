@@ -18,7 +18,7 @@ The home screen gives a quick snapshot of the entire library:
 
 - **Summary cards** — Total videos, total views, total likes, and average views per video
 - **Top Performers** — The highest-view videos across all events
-- **Growth Trends** — Chart of cumulative view growth over time
+- **Aggregate Views Over Time** — Chart of cumulative library view growth over the last 12 months. Hover any point to see the exact date and total view count.
 - **Event Comparison** — Side-by-side view totals per event
 - **Milestones** — Notable view count achievements
 

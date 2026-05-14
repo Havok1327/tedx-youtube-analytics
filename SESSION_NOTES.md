@@ -1,6 +1,6 @@
 # TEDx YouTube Analytics — Session Notes
 
-> Reference document for future Claude sessions. Updated 2026-03-12.
+> Reference document for future Claude sessions. Updated 2026-05-14.
 
 ---
 
@@ -174,6 +174,12 @@ All phases are **incremental** — they skip videos that already have data. Safe
 ---
 
 ## Completed Work History
+
+### May 2026 — Dashboard Growth Chart Fix
+- **Bug**: "Aggregate Views Over Time" chart on the dashboard showed view totals dropping back to 2025 levels. Root cause: the chart's x-axis was categorical and labels used `month + day` only, so weekly snapshots from 2025 and 2026 with the same month/day (e.g., "Apr 13") collided into a single x-axis bucket.
+- **Fix** (`src/app/api/stats/overview/route.ts`): added a 12-month cutoff on the `stats_history` query so the chart only ever shows one year's worth of snapshots. Prevents future collisions without changing the axis type.
+- **Belt-and-suspenders** (`src/components/dashboard/growth-chart.tsx`): tooltip date now includes the year (`Apr 13, 2026`), and the card title says "(last 12 months)" so the scope is explicit to the user.
+- Future option if a multi-year view is wanted: swap the categorical x-axis for Recharts' `scale="time"` with numeric timestamps — handles arbitrary date ranges natively.
 
 ### Mar 2026 — Feature 2: Timestamp Accuracy
 - New `scripts/text_utils.py`: exact substring + sliding window word overlap matching
