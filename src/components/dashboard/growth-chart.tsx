@@ -18,13 +18,13 @@ interface GrowthChartProps {
 export function GrowthChart({ data }: GrowthChartProps) {
   const chartData = data.map((d) => ({
     ...d,
-    displayDate: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    displayDate: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
   }));
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Aggregate Views Over Time</CardTitle>
+        <CardTitle>Aggregate Views Over Time <span className="text-sm font-normal text-muted-foreground">(last 12 months)</span></CardTitle>
       </CardHeader>
       <CardContent>
         {chartData.length === 0 ? (

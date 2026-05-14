@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { videos, events, statsHistory } from "@/db/schema";
-import { sql, eq, desc, ne } from "drizzle-orm";
+import { sql, eq, desc, ne, and, gte } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -64,8 +64,13 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(sql`avg(${videos.views})`))
       .all();
 
-    // Aggregate growth over time from stats_history
-    // Get one data point per unique date (sum of all videos' views)
+    // Aggregate growth over time from stats_history — last 12 months only
+    // (limiting prevents duplicate month/day labels when data spans 2+ years)
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+    const cutoffDate = twelveMonthsAgo.toISOString().split("T")[0];
+    const dateFilter = gte(statsHistory.recordedAt, cutoffDate);
+
     const growthData = await db
       .select({
         date: statsHistory.recordedAt,
@@ -74,7 +79,7 @@ export async function GET(request: NextRequest) {
       })
       .from(statsHistory)
       .innerJoin(videos, eq(statsHistory.videoId, videos.id))
-      .where(excludeFilter)
+      .where(excludeFilter ? and(excludeFilter, dateFilter) : dateFilter)
       .groupBy(statsHistory.recordedAt)
       .orderBy(statsHistory.recordedAt)
       .all();
