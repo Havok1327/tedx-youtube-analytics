@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { clips, videos, categories, videoSpeakers, speakers, videoKeyMoments } from "@/db/schema";
+import { clips, videos, categories, videoSpeakers, speakers, videoKeyMoments, events } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +17,7 @@ export async function GET() {
         videoId: clips.videoId,
         youtubeId: videos.youtubeId,
         videoTitle: videos.title,
+        eventName: events.name,
         categoryId: clips.categoryId,
         startTime: clips.startTime,
         endTime: clips.endTime,
@@ -26,6 +27,7 @@ export async function GET() {
       })
       .from(clips)
       .innerJoin(videos, eq(videos.id, clips.videoId))
+      .leftJoin(events, eq(events.id, videos.eventId))
       .orderBy(clips.relevanceScore);
 
     // Get all speakers
@@ -53,6 +55,7 @@ export async function GET() {
         videoId: videoKeyMoments.videoId,
         youtubeId: videos.youtubeId,
         videoTitle: videos.title,
+        eventName: events.name,
         quoteText: videoKeyMoments.quoteText,
         context: videoKeyMoments.context,
         startTime: videoKeyMoments.startTime,
@@ -60,6 +63,7 @@ export async function GET() {
       })
       .from(videoKeyMoments)
       .innerJoin(videos, eq(videos.id, videoKeyMoments.videoId))
+      .leftJoin(events, eq(events.id, videos.eventId))
       .orderBy(asc(videos.title), asc(videoKeyMoments.startTime));
 
     // Group clips by category
@@ -85,13 +89,14 @@ export async function GET() {
     });
 
     // Group key moments by video
-    const videoMap = new Map<number, { videoId: number; youtubeId: string; videoTitle: string | null; speakers: string[]; moments: typeof allKeyMoments }>();
+    const videoMap = new Map<number, { videoId: number; youtubeId: string; videoTitle: string | null; eventName: string | null; speakers: string[]; moments: typeof allKeyMoments }>();
     for (const m of allKeyMoments) {
       if (!videoMap.has(m.videoId)) {
         videoMap.set(m.videoId, {
           videoId: m.videoId,
           youtubeId: m.youtubeId,
           videoTitle: m.videoTitle,
+          eventName: m.eventName,
           speakers: speakersByVideo.get(m.videoId) || [],
           moments: [],
         });

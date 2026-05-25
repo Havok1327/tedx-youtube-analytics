@@ -27,6 +27,7 @@ interface Clip {
   videoId: number;
   youtubeId: string;
   videoTitle: string | null;
+  eventName: string | null;
   startTime: number;
   endTime: number;
   startTimestamp: string;
@@ -66,6 +67,7 @@ interface KeyMomentVideo {
   videoId: number;
   youtubeId: string;
   videoTitle: string | null;
+  eventName: string | null;
   speakers: string[];
   moments: KeyMoment[];
 }
@@ -140,6 +142,89 @@ export default function MontagePage() {
     navigator.clipboard.writeText(sections.join("\n\n\n"));
   }, [keyMomentVideos, speakerFilter]);
 
+  const downloadCsv = (filename: string, rows: (string | number | null)[][]) => {
+    const escape = (v: string | number | null) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = rows.map((r) => r.map(escape).join(",")).join("\r\n");
+    // BOM for Excel to detect UTF-8
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadMomentsCsv = useCallback(() => {
+    const header = [
+      "Speaker(s)",
+      "Talk Title",
+      "Event",
+      "Quote",
+      "Context",
+      "Timestamp",
+      "Duration (s)",
+      "Thumbnail URL",
+      "YouTube URL",
+    ];
+    const rows: (string | number | null)[][] = [header];
+    for (const v of filteredKeyMomentVideos) {
+      for (const m of v.moments) {
+        rows.push([
+          v.speakers.join(", "),
+          v.videoTitle || "",
+          v.eventName || "",
+          m.quoteText,
+          m.context || "",
+          `${m.startTimestamp} - ${m.endTimestamp}`,
+          m.durationSeconds,
+          `https://img.youtube.com/vi/${v.youtubeId}/maxresdefault.jpg`,
+          m.youtubeUrl,
+        ]);
+      }
+    }
+    downloadCsv("tedx-key-moments.csv", rows);
+  }, [keyMomentVideos, speakerFilter]);
+
+  const downloadClipsCsv = useCallback(() => {
+    const header = [
+      "Category",
+      "Speaker(s)",
+      "Talk Title",
+      "Event",
+      "Quote",
+      "Description",
+      "Timestamp",
+      "Duration (s)",
+      "Thumbnail URL",
+      "YouTube URL",
+    ];
+    const rows: (string | number | null)[][] = [header];
+    for (const ws of filteredWorksheets) {
+      for (const c of ws.clips) {
+        rows.push([
+          ws.category.name,
+          c.speakers.join(", "),
+          c.videoTitle || "",
+          c.eventName || "",
+          c.quoteSnippet || "",
+          c.description || "",
+          `${c.startTimestamp} - ${c.endTimestamp}`,
+          c.durationSeconds,
+          `https://img.youtube.com/vi/${c.youtubeId}/maxresdefault.jpg`,
+          c.youtubeUrl,
+        ]);
+      }
+    }
+    downloadCsv("tedx-clips.csv", rows);
+  }, [worksheets, selectedCategory]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -209,6 +294,7 @@ export default function MontagePage() {
                 </SelectContent>
               </Select>
               <Button variant="outline" onClick={copyAllClipTimestamps}>Copy All</Button>
+              <Button variant="outline" onClick={downloadClipsCsv}>Download CSV</Button>
               <Button variant="outline" onClick={() => window.print()}>Print</Button>
             </div>
           </div>
@@ -289,6 +375,7 @@ export default function MontagePage() {
                 </SelectContent>
               </Select>
               <Button variant="outline" onClick={copyAllMoments}>Copy All</Button>
+              <Button variant="outline" onClick={downloadMomentsCsv}>Download CSV</Button>
               <Button variant="outline" onClick={() => window.print()}>Print</Button>
             </div>
           </div>
