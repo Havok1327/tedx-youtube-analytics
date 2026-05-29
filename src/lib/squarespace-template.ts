@@ -119,7 +119,7 @@ export function buildSquarespaceHtml(
     color: var(--tdxsl-meta-color);
     margin: 0;
   }
-  .tdxsl-page .tdxsl-tile[hidden],
+  .tdxsl-page .tdxsl-tile-card[hidden],
   .tdxsl-page .tdxsl-section[hidden],
   .tdxsl-page .tdxsl-no-results[hidden] {
     display: none !important;
@@ -161,6 +161,13 @@ export function buildSquarespaceHtml(
     margin: 0;
   }
 
+  /* Card wraps the clickable tile + the absolutely-positioned share button
+     so we can keep the share button as a real <button> sibling instead of
+     nesting buttons (which is invalid HTML). */
+  .tdxsl-page .tdxsl-tile-card {
+    position: relative;
+    border-radius: var(--tdxsl-radius);
+  }
   .tdxsl-page .tdxsl-tile {
     display: flex;
     flex-direction: column;
@@ -179,12 +186,43 @@ export function buildSquarespaceHtml(
     font: inherit;
     width: 100%;
   }
-  .tdxsl-page .tdxsl-tile:hover,
+  .tdxsl-page .tdxsl-tile-card:hover .tdxsl-tile,
   .tdxsl-page .tdxsl-tile:focus-visible {
     transform: translateY(-3px);
     box-shadow: var(--tdxsl-shadow-hover);
     outline: 2px solid var(--tdxsl-accent);
     outline-offset: 2px;
+  }
+
+  /* In-grid share button — hidden until hover on desktop, always visible
+     on touch devices that have no hover. */
+  .tdxsl-page .tdxsl-tile-share {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    border: 0;
+    border-radius: 4px;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.75rem;
+    font-family: inherit;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 160ms ease, background 160ms ease;
+  }
+  .tdxsl-page .tdxsl-tile-card:hover .tdxsl-tile-share,
+  .tdxsl-page .tdxsl-tile-share:focus-visible {
+    opacity: 1;
+  }
+  .tdxsl-page .tdxsl-tile-share:hover {
+    background: rgba(0,0,0,0.9);
+  }
+  @media (hover: none) {
+    .tdxsl-page .tdxsl-tile-share { opacity: 0.92; }
   }
 
   .tdxsl-page .tdxsl-thumb {
@@ -350,16 +388,19 @@ ${sectionsJs}
 
   function renderTile(v, eventName) {
     var haystack = (v.title + " " + (v.speaker || "") + " " + (eventName || "")).toLowerCase();
-    return '<button class="tdxsl-tile" type="button" data-tdxsl-id="' + escapeHtml(v.id) + '" data-tdxsl-search="' + escapeHtml(haystack) + '" aria-label="Play: ' + escapeHtml(v.title) + '">' +
-      '<div class="tdxsl-thumb">' +
-        '<img src="https://img.youtube.com/vi/' + encodeURIComponent(v.id) + '/hqdefault.jpg" alt="" loading="lazy">' +
-        '<div class="tdxsl-play">' + PLAY_SVG + '</div>' +
-      '</div>' +
-      '<div class="tdxsl-meta">' +
-        '<p class="tdxsl-title">' + escapeHtml(v.title) + '</p>' +
-        (v.speaker ? '<p class="tdxsl-speaker">' + escapeHtml(v.speaker) + '</p>' : '') +
-      '</div>' +
-    '</button>';
+    return '<div class="tdxsl-tile-card" data-tdxsl-search="' + escapeHtml(haystack) + '">' +
+      '<button class="tdxsl-tile" type="button" data-tdxsl-id="' + escapeHtml(v.id) + '" aria-label="Play: ' + escapeHtml(v.title) + '">' +
+        '<div class="tdxsl-thumb">' +
+          '<img src="https://img.youtube.com/vi/' + encodeURIComponent(v.id) + '/hqdefault.jpg" alt="" loading="lazy">' +
+          '<div class="tdxsl-play">' + PLAY_SVG + '</div>' +
+        '</div>' +
+        '<div class="tdxsl-meta">' +
+          '<p class="tdxsl-title">' + escapeHtml(v.title) + '</p>' +
+          (v.speaker ? '<p class="tdxsl-speaker">' + escapeHtml(v.speaker) + '</p>' : '') +
+        '</div>' +
+      '</button>' +
+      '<button class="tdxsl-tile-share" type="button" data-tdxsl-share-id="' + escapeHtml(v.id) + '" aria-label="Copy link to: ' + escapeHtml(v.title) + '">Copy link</button>' +
+    '</div>';
   }
 
   var sectionsContainer = document.getElementById("tdxsl-sections");
@@ -390,17 +431,17 @@ ${sectionsJs}
   function applySearch(q) {
     q = String(q || "").toLowerCase().trim();
     var visibleCount = 0;
-    var tiles = document.querySelectorAll(".tdxsl-page .tdxsl-tile");
-    for (var i = 0; i < tiles.length; i++) {
-      var hay = tiles[i].getAttribute("data-tdxsl-search") || "";
+    var cards = document.querySelectorAll(".tdxsl-page .tdxsl-tile-card");
+    for (var i = 0; i < cards.length; i++) {
+      var hay = cards[i].getAttribute("data-tdxsl-search") || "";
       var match = !q || hay.indexOf(q) !== -1;
-      tiles[i].hidden = !match;
+      cards[i].hidden = !match;
       if (match) visibleCount++;
     }
     var sections = document.querySelectorAll(".tdxsl-page .tdxsl-section");
     for (var j = 0; j < sections.length; j++) {
-      var visibleTiles = sections[j].querySelectorAll(".tdxsl-tile:not([hidden])");
-      sections[j].hidden = visibleTiles.length === 0;
+      var visibleCards = sections[j].querySelectorAll(".tdxsl-tile-card:not([hidden])");
+      sections[j].hidden = visibleCards.length === 0;
     }
     noResults.hidden = visibleCount > 0;
     if (!q) {
@@ -428,7 +469,6 @@ ${sectionsJs}
   var lastFocus = null;
   var page = document.getElementById("tdxsl-page");
   var currentVideoId = null;
-  var shareLabelTimer = null;
 
   // Build set of valid video ids so we ignore garbage in the URL hash.
   var VALID_IDS = {};
@@ -468,7 +508,10 @@ ${sectionsJs}
     document.body.classList.add("tdxsl-modal-open");
     if (shareBtn) {
       shareBtn.textContent = "Copy link";
-      if (shareLabelTimer) { clearTimeout(shareLabelTimer); shareLabelTimer = null; }
+      if (shareBtn.__tdxslLabelTimer) {
+        clearTimeout(shareBtn.__tdxslLabelTimer);
+        shareBtn.__tdxslLabelTimer = null;
+      }
     }
     if (!opts.skipHistory) setHash(videoId);
     var closeBtn = modal.querySelector(".tdxsl-modal-close");
@@ -485,7 +528,55 @@ ${sectionsJs}
     if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
   }
 
+  // Shared clipboard helper used by both the in-grid share buttons and the
+  // modal's Copy Link button.
+  function copyToClipboard(text, onSuccess, onFail) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(onSuccess).catch(onFail);
+      return;
+    }
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (ok) onSuccess(); else onFail();
+    } catch (e) { onFail(); }
+  }
+
+  function flashLabel(btn, original, success) {
+    btn.textContent = success ? "✓ Copied" : "Press Ctrl+C";
+    if (btn.__tdxslLabelTimer) clearTimeout(btn.__tdxslLabelTimer);
+    btn.__tdxslLabelTimer = setTimeout(function () {
+      btn.textContent = original;
+      btn.__tdxslLabelTimer = null;
+    }, success ? 1800 : 2500);
+  }
+
+  function shareLinkForId(buttonEl, videoId, originalLabel) {
+    if (!VALID_IDS[videoId]) return;
+    var url = location.href.split("#")[0] + "#video=" + encodeURIComponent(videoId);
+    copyToClipboard(
+      url,
+      function () { flashLabel(buttonEl, originalLabel, true); },
+      function () { flashLabel(buttonEl, originalLabel, false); }
+    );
+  }
+
   page.addEventListener("click", function (e) {
+    // Per-tile share button → copy link, do NOT open the modal.
+    var shareEl = e.target.closest(".tdxsl-tile-share");
+    if (shareEl) {
+      e.stopPropagation();
+      e.preventDefault();
+      var shareId = shareEl.getAttribute("data-tdxsl-share-id");
+      if (shareId) shareLinkForId(shareEl, shareId, "Copy link");
+      return;
+    }
+    // Otherwise — tile click opens the modal.
     var tile = e.target.closest(".tdxsl-tile");
     if (!tile) return;
     var id = tile.getAttribute("data-tdxsl-id");
@@ -500,36 +591,11 @@ ${sectionsJs}
     if (e.key === "Escape" && modal.getAttribute("aria-hidden") === "false") closeModal();
   });
 
-  // Copy-link button: copies the current page URL with #video=ID to clipboard.
+  // Modal Copy Link button: same helper as the in-grid share buttons.
   if (shareBtn) {
     shareBtn.addEventListener("click", function () {
       if (!currentVideoId) return;
-      var url = location.href.split("#")[0] + "#video=" + encodeURIComponent(currentVideoId);
-      function showCopied() {
-        shareBtn.textContent = "✓ Link copied";
-        if (shareLabelTimer) clearTimeout(shareLabelTimer);
-        shareLabelTimer = setTimeout(function () { shareBtn.textContent = "Copy link"; }, 2200);
-      }
-      function showFailed() {
-        shareBtn.textContent = "Press Ctrl+C";
-        if (shareLabelTimer) clearTimeout(shareLabelTimer);
-        shareLabelTimer = setTimeout(function () { shareBtn.textContent = "Copy link"; }, 2500);
-      }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(showCopied).catch(showFailed);
-      } else {
-        // Old-browser fallback: select a temp textarea, execCommand("copy")
-        try {
-          var ta = document.createElement("textarea");
-          ta.value = url;
-          ta.style.position = "fixed"; ta.style.opacity = "0";
-          document.body.appendChild(ta);
-          ta.select();
-          var ok = document.execCommand("copy");
-          document.body.removeChild(ta);
-          if (ok) showCopied(); else showFailed();
-        } catch (e) { showFailed(); }
-      }
+      shareLinkForId(shareBtn, currentVideoId, "Copy link");
     });
   }
 
