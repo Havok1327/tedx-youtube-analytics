@@ -81,16 +81,13 @@ export function buildSquarespaceHtml(
 
   /* ── Search ───────────────────────────────────────────────────────────── */
   .tdxsl-page .tdxsl-search {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    max-width: 520px;
+    max-width: 480px;
     margin: 0 auto 2.5rem;
-    flex-wrap: wrap;
-    justify-content: center;
   }
   .tdxsl-page .tdxsl-search input {
-    flex: 1 1 280px;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
     padding: 0.65rem 1.25rem;
     font-size: 1rem;
     border: 2px solid #ddd;
@@ -106,11 +103,13 @@ export function buildSquarespaceHtml(
     border-color: var(--tdxsl-accent);
   }
   .tdxsl-page .tdxsl-search-count {
+    display: block;
+    text-align: center;
     font-size: 0.9rem;
     color: var(--tdxsl-meta-color);
-    white-space: nowrap;
-    min-width: 5rem;
-    text-align: left;
+    margin-top: 0.5rem;
+    /* min-height reserves the line so the grid doesn't jump when count appears */
+    min-height: 1.2em;
   }
   .tdxsl-page .tdxsl-no-results {
     text-align: center;
