@@ -153,9 +153,11 @@ def run_phase1(conn):
     """Fetch transcripts for all videos that don't have one yet."""
     logger = logging.getLogger("phase1")
 
-    # Get all videos
+    # Get all videos — skip entertainment (musical/dance performances etc.
+    # don't have useful transcripts for AI summarization).
     rows = conn.execute(
-        "SELECT id, youtube_id, title FROM videos ORDER BY id"
+        "SELECT id, youtube_id, title FROM videos "
+        "WHERE format != 'entertainment' ORDER BY id"
     ).fetchall()
 
     # Get videos that already have transcripts
@@ -289,13 +291,15 @@ def run_phase2(conn, force_categories: bool = False):
     # ── Pass 1: Summarize ─────────────────────────────────────────────
     logger.info("Phase 2 Pass 1: Summarizing videos...")
 
-    # Get videos with transcripts but no summaries
+    # Get videos with transcripts but no summaries (skip entertainment —
+    # defense in depth; phase 1 already skips, but this catches the case
+    # where someone manually fetches a transcript for an entertainment video).
     rows = conn.execute("""
         SELECT t.video_id, v.youtube_id, v.title, t.full_text
         FROM transcripts t
         JOIN videos v ON v.id = t.video_id
         LEFT JOIN video_summaries vs ON vs.video_id = t.video_id
-        WHERE vs.id IS NULL
+        WHERE vs.id IS NULL AND v.format != 'entertainment'
         ORDER BY t.video_id
     """).fetchall()
 
@@ -562,13 +566,15 @@ def run_phase3(conn):
 
         logger.info(f"  Finding clips for '{cat_name}'...")
 
-        # Get videos tagged with this category
+        # Get videos tagged with this category (entertainment excluded —
+        # they don't have categories anyway since phase 2 skips them,
+        # but defense in depth).
         video_rows = conn.execute("""
             SELECT v.id, v.youtube_id, v.title, t.entries
             FROM video_categories vc
             JOIN videos v ON v.id = vc.video_id
             JOIN transcripts t ON t.video_id = v.id
-            WHERE vc.category_id = ?
+            WHERE vc.category_id = ? AND v.format != 'entertainment'
             ORDER BY vc.relevance_score DESC
         """, (cat_id,)).fetchall()
 
@@ -687,12 +693,13 @@ def run_phase4(conn):
     logger = logging.getLogger("phase4")
 
     # Get videos with transcripts that don't have key moments yet
+    # (skip entertainment — defense in depth).
     rows = conn.execute("""
         SELECT v.id, v.title, t.entries
         FROM videos v
         JOIN transcripts t ON t.video_id = v.id
         LEFT JOIN video_key_moments km ON km.video_id = v.id
-        WHERE km.video_id IS NULL
+        WHERE km.video_id IS NULL AND v.format != 'entertainment'
         ORDER BY v.id
     """).fetchall()
 
@@ -785,7 +792,14 @@ def run_phase4(conn):
 
 def show_status(conn):
     """Display pipeline status."""
-    total_videos = conn.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
+    # Pipeline operates on non-entertainment videos only; everything reported
+    # here is relative to that subset so "174/176 transcripts" is accurate.
+    total_videos = conn.execute(
+        "SELECT COUNT(*) FROM videos WHERE format != 'entertainment'"
+    ).fetchone()[0]
+    entertainment_videos = conn.execute(
+        "SELECT COUNT(*) FROM videos WHERE format = 'entertainment'"
+    ).fetchone()[0]
     total_transcripts = conn.execute("SELECT COUNT(*) FROM transcripts").fetchone()[0]
     total_summaries = conn.execute("SELECT COUNT(*) FROM video_summaries").fetchone()[0]
     total_categories = conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
@@ -801,7 +815,8 @@ def show_status(conn):
     print(f"\n{'='*60}")
     print("TEDx Pipeline Status")
     print(f"{'='*60}")
-    print(f"  Total videos:          {total_videos}")
+    print(f"  Total videos:          {total_videos} (pipeline-eligible)")
+    print(f"  Entertainment videos:  {entertainment_videos} (skipped by pipeline)")
     print(f"  Phase 1 - Transcripts: {total_transcripts}/{total_videos}")
     print(f"  Phase 2 - Summaries:   {total_summaries}/{total_transcripts}")
     print(f"  Phase 2 - Categories:  {total_categories}")
