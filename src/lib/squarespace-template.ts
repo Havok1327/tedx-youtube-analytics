@@ -72,7 +72,7 @@ export function buildSquarespaceHtml(
   .tdxsl-page *::after { box-sizing: border-box; }
 
   .tdxsl-page-title {
-    font-size: 2.25rem !important;
+    font-size: 2.75rem !important;
     font-weight: 700;
     color: var(--tdxsl-title-color);
     margin: 0 0 2rem !important;
@@ -99,9 +99,9 @@ export function buildSquarespaceHtml(
     margin: 0 !important;
   }
   .tdxsl-page .tdxsl-section-count {
-    font-size: 0.85rem;
+    font-size: 1rem;
     color: var(--tdxsl-meta-color);
-    font-weight: 400;
+    font-weight: 500;
   }
 
   /* ── Grid ──────────────────────────────────────────────────────────────── */
