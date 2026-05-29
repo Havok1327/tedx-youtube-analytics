@@ -88,6 +88,7 @@ export default function ManagePage() {
   const [generatingSqs, setGeneratingSqs] = useState(false);
   const [sqsHtml, setSqsHtml] = useState<string | null>(null);
   const [sqsCount, setSqsCount] = useState<number | null>(null);
+  const [sqsSectionCount, setSqsSectionCount] = useState<number | null>(null);
   const [sqsBytes, setSqsBytes] = useState<number | null>(null);
   const [sqsDialogOpen, setSqsDialogOpen] = useState(false);
   const [sqsError, setSqsError] = useState<string | null>(null);
@@ -108,6 +109,7 @@ export default function ManagePage() {
       const data = await res.json();
       setSqsHtml(data.html);
       setSqsCount(data.videoCount);
+      setSqsSectionCount(data.sectionCount ?? null);
       setSqsBytes(data.byteSize);
       setSqsDialogOpen(true);
     } catch (e) {
@@ -628,7 +630,7 @@ export default function ManagePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Generate a self-contained HTML video grid you can paste into a Squarespace Code Block. The grid uses every non-excluded video in the tracker, plays videos in an inline lightbox (no YouTube redirect), and refreshes every time you re-generate.
+                Generate a self-contained HTML video grid you can paste into a Squarespace Code Block. Every non-excluded video in the tracker, grouped by event (newest events first), with an inline lightbox player so visitors never leave Squarespace. Re-generate whenever you add or remove videos.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Button onClick={handleGenerateSquarespace} disabled={generatingSqs}>
@@ -909,7 +911,7 @@ export default function ManagePage() {
               {sqsError
                 ? "Something went wrong generating the HTML."
                 : sqsCount != null
-                  ? `${sqsCount} videos${sqsBytes ? ` · ${(sqsBytes / 1024).toFixed(1)} KB` : ""}. Paste this into a Squarespace Code Block on a full-width section.`
+                  ? `${sqsCount} videos across ${sqsSectionCount ?? "?"} events${sqsBytes ? ` · ${(sqsBytes / 1024).toFixed(1)} KB` : ""}. Paste this into a Squarespace Code Block on a full-width section.`
                   : "Generating..."}
             </DialogDescription>
           </DialogHeader>

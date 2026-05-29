@@ -2,13 +2,19 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { videos, events, speakers, videoSpeakers } from "@/db/schema";
 import { eq, ne, desc } from "drizzle-orm";
-import { buildSquarespaceHtml, type SquarespaceVideo } from "@/lib/squarespace-template";
+import {
+  buildSquarespaceHtml,
+  type SquarespaceSection,
+  type SquarespaceVideo,
+} from "@/lib/squarespace-template";
 
 export const dynamic = "force-dynamic";
 
+const FALLBACK_EVENT_NAME = "Other";
+
 export async function GET() {
   try {
-    // Fetch every non-excluded video joined with its event + all its speakers.
+    // Fetch every non-excluded video joined with event + all its speakers.
     // Excluded-from-charts videos are also hidden from the public Squarespace
     // grid — same default as the Dashboard. (When the `format` column lands,
     // we'll add format-based filtering here too: talks + interviews only.)
@@ -30,23 +36,28 @@ export async function GET() {
       .orderBy(desc(videos.publishedAt), desc(videos.id))
       .all();
 
-    // Collapse multi-speaker videos into a single row, joining names with " & ".
-    // The Map preserves insertion order, so the first time we see a video id
-    // determines its position — which matches the DESC publishedAt ordering.
-    const byVideoId = new Map<number, SquarespaceVideo>();
+    // ── Step 1: collapse multi-speaker rows into one video per id ────────────
+    // Keep a parallel `publishedAt` per video so we can sort events later.
+    type CollectedVideo = SquarespaceVideo & {
+      eventName: string;
+      publishedAt: string | null;
+    };
+    const byVideoId = new Map<number, CollectedVideo>();
+
     for (const r of rows) {
-      const existing = byVideoId.get(r.videoId);
       const speakerName = [r.speakerFirst, r.speakerLast]
         .filter(Boolean)
         .join(" ")
         .trim();
+      const existing = byVideoId.get(r.videoId);
 
       if (!existing) {
         byVideoId.set(r.videoId, {
           id: r.youtubeId,
           title: r.title || "(Untitled)",
           speaker: speakerName,
-          event: r.eventName || "",
+          eventName: r.eventName || FALLBACK_EVENT_NAME,
+          publishedAt: r.publishedAt,
         });
       } else if (speakerName) {
         existing.speaker = existing.speaker
@@ -55,12 +66,37 @@ export async function GET() {
       }
     }
 
-    const videoList = Array.from(byVideoId.values());
-    const html = buildSquarespaceHtml(videoList);
+    // ── Step 2: bucket videos by event (preserving newest-first order) ───────
+    // Because we iterated rows in publishedAt DESC order, the first time we
+    // see an event determines its rank — which gives us "events sorted by
+    // their most-recent video" for free.
+    const sectionMap = new Map<string, SquarespaceVideo[]>();
+    for (const v of byVideoId.values()) {
+      if (!sectionMap.has(v.eventName)) sectionMap.set(v.eventName, []);
+      sectionMap.get(v.eventName)!.push({
+        id: v.id,
+        title: v.title,
+        speaker: v.speaker,
+      });
+    }
+
+    // ── Step 3: emit sections in insertion order, fallback "Other" last ──────
+    const sections: SquarespaceSection[] = [];
+    for (const [name, vids] of sectionMap.entries()) {
+      if (name !== FALLBACK_EVENT_NAME) sections.push({ name, videos: vids });
+    }
+    const fallback = sectionMap.get(FALLBACK_EVENT_NAME);
+    if (fallback && fallback.length) {
+      sections.push({ name: FALLBACK_EVENT_NAME, videos: fallback });
+    }
+
+    const html = buildSquarespaceHtml(sections);
+    const totalVideos = sections.reduce((n, s) => n + s.videos.length, 0);
 
     return NextResponse.json({
       html,
-      videoCount: videoList.length,
+      videoCount: totalVideos,
+      sectionCount: sections.length,
       generatedAt: new Date().toISOString(),
       byteSize: html.length,
     });

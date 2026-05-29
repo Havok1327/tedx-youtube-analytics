@@ -1,47 +1,59 @@
 /**
- * Generates a self-contained Squarespace-ready HTML video grid.
+ * Generates a self-contained Squarespace-ready HTML video grid,
+ * grouped by event.
  *
- * The output is the exact structure that lives in
- * `squarespace/sample_grid_v2.html` (the prototype) — same CSS, same modal
- * player, same JS — but with the video array populated from the DB.
+ * Single source of truth for the public video grid:
+ * - Same scoped CSS as the v2 prototype (tdxsl-* prefix)
+ * - Lightbox modal player (X-only close, ESC closes too)
+ * - Data-driven render from a TDXSL_SECTIONS array
  *
- * Single source of truth: when we tweak the grid design, update this file
- * and the prototype together. (A future refactor could have one read from
- * the other, but inline is simpler for now.)
+ * Sections render in the order supplied (caller is responsible for sort).
+ * Each section has a header (event name + count) and its own video grid.
  */
 
 export interface SquarespaceVideo {
   id: string;       // YouTube video id (the 11-char string in the URL)
   title: string;
   speaker: string;  // may be empty
-  event: string;    // may be empty
+}
+
+export interface SquarespaceSection {
+  name: string;                  // event name shown in section header
+  videos: SquarespaceVideo[];
 }
 
 export interface SquarespaceTemplateOptions {
-  generatedAt?: string; // ISO timestamp, defaults to now
+  pageTitle?: string;            // top-level heading (default: "TEDxStLouis Talks")
+  generatedAt?: string;          // ISO timestamp, defaults to now
 }
 
 export function buildSquarespaceHtml(
-  videos: SquarespaceVideo[],
+  sections: SquarespaceSection[],
   options: SquarespaceTemplateOptions = {}
 ): string {
+  const pageTitle = options.pageTitle ?? "TEDxStLouis Talks";
   const generatedAt = options.generatedAt ?? new Date().toISOString();
   const dateStr = generatedAt.slice(0, 10);
+  const totalVideos = sections.reduce((n, s) => n + s.videos.length, 0);
 
-  // Use JSON.stringify per-value so any apostrophes/quotes/backslashes in
-  // titles are safely escaped into valid JS string literals.
-  const videoLines = videos
-    .map(
-      (v) =>
-        `    { id: ${JSON.stringify(v.id)}, title: ${JSON.stringify(v.title)}, speaker: ${JSON.stringify(v.speaker)}, event: ${JSON.stringify(v.event)} }`
-    )
+  // JSON.stringify per value → safely escapes apostrophes, quotes, backslashes.
+  const sectionsJs = sections
+    .map((s) => {
+      const videoLines = s.videos
+        .map(
+          (v) =>
+            `      { id: ${JSON.stringify(v.id)}, title: ${JSON.stringify(v.title)}, speaker: ${JSON.stringify(v.speaker)} }`
+        )
+        .join(",\n");
+      return `    {\n      name: ${JSON.stringify(s.name)},\n      videos: [\n${videoLines}\n      ]\n    }`;
+    })
     .join(",\n");
 
   return `<!-- TEDxStLouis video grid — generated ${dateStr} from the analytics tracker -->
-<!-- ${videos.length} videos. To regenerate: Manage → Data & Pipeline → Generate Squarespace HTML -->
+<!-- ${totalVideos} videos across ${sections.length} events. Regenerate from Manage → Data & Pipeline → Generate Squarespace HTML -->
 
 <style>
-  .tdxsl-grid-v2 {
+  .tdxsl-page {
     --tdxsl-tile-bg: #ffffff;
     --tdxsl-title-color: #111111;
     --tdxsl-meta-color: #666666;
@@ -50,20 +62,60 @@ export function buildSquarespaceHtml(
     --tdxsl-shadow: 0 2px 6px rgba(0,0,0,0.08);
     --tdxsl-shadow-hover: 0 6px 18px rgba(0,0,0,0.16);
 
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  .tdxsl-page *,
+  .tdxsl-page *::before,
+  .tdxsl-page *::after { box-sizing: border-box; }
+
+  .tdxsl-page-title {
+    font-size: 2.25rem !important;
+    font-weight: 700;
+    color: var(--tdxsl-title-color);
+    margin: 0 0 2rem !important;
+    text-align: center;
+  }
+
+  /* ── Sections ──────────────────────────────────────────────────────────── */
+  .tdxsl-page .tdxsl-section { margin: 0 0 3rem; }
+  .tdxsl-page .tdxsl-section:last-child { margin-bottom: 0; }
+
+  .tdxsl-page .tdxsl-section-header {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0 0 1.25rem !important;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--tdxsl-accent);
+  }
+  .tdxsl-page .tdxsl-section-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--tdxsl-title-color);
+    margin: 0 !important;
+  }
+  .tdxsl-page .tdxsl-section-count {
+    font-size: 0.85rem;
+    color: var(--tdxsl-meta-color);
+    font-weight: 400;
+  }
+
+  /* ── Grid ──────────────────────────────────────────────────────────────── */
+  .tdxsl-page .tdxsl-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1.25rem;
     width: 100%;
-    max-width: 1400px;
-    margin: 0 auto;
-    box-sizing: border-box;
     list-style: none;
+    padding: 0;
+    margin: 0;
   }
-  .tdxsl-grid-v2 *,
-  .tdxsl-grid-v2 *::before,
-  .tdxsl-grid-v2 *::after { box-sizing: border-box; }
 
-  .tdxsl-grid-v2 .tdxsl-tile {
+  .tdxsl-page .tdxsl-tile {
     display: flex;
     flex-direction: column;
     background: var(--tdxsl-tile-bg);
@@ -81,22 +133,22 @@ export function buildSquarespaceHtml(
     font: inherit;
     width: 100%;
   }
-  .tdxsl-grid-v2 .tdxsl-tile:hover,
-  .tdxsl-grid-v2 .tdxsl-tile:focus-visible {
+  .tdxsl-page .tdxsl-tile:hover,
+  .tdxsl-page .tdxsl-tile:focus-visible {
     transform: translateY(-3px);
     box-shadow: var(--tdxsl-shadow-hover);
     outline: 2px solid var(--tdxsl-accent);
     outline-offset: 2px;
   }
 
-  .tdxsl-grid-v2 .tdxsl-thumb {
+  .tdxsl-page .tdxsl-thumb {
     position: relative;
     width: 100%;
     aspect-ratio: 16 / 9;
     background: #000;
     overflow: hidden;
   }
-  .tdxsl-grid-v2 .tdxsl-thumb img {
+  .tdxsl-page .tdxsl-thumb img {
     width: 100% !important;
     height: 100% !important;
     object-fit: cover;
@@ -105,27 +157,27 @@ export function buildSquarespaceHtml(
     margin: 0 !important;
     border-radius: 0 !important;
   }
-  .tdxsl-grid-v2 .tdxsl-tile:hover .tdxsl-thumb img { transform: scale(1.04); }
+  .tdxsl-page .tdxsl-tile:hover .tdxsl-thumb img { transform: scale(1.04); }
 
-  .tdxsl-grid-v2 .tdxsl-play {
+  .tdxsl-page .tdxsl-play {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
     pointer-events: none;
     opacity: 0.85;
     transition: opacity 160ms ease;
   }
-  .tdxsl-grid-v2 .tdxsl-tile:hover .tdxsl-play { opacity: 1; }
-  .tdxsl-grid-v2 .tdxsl-play svg {
+  .tdxsl-page .tdxsl-tile:hover .tdxsl-play { opacity: 1; }
+  .tdxsl-page .tdxsl-play svg {
     width: 56px; height: 56px;
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
   }
 
-  .tdxsl-grid-v2 .tdxsl-meta {
+  .tdxsl-page .tdxsl-meta {
     padding: 0.9rem 1rem 1rem;
     display: flex; flex-direction: column; gap: 0.25rem;
     flex: 1;
   }
-  .tdxsl-grid-v2 .tdxsl-title {
+  .tdxsl-page .tdxsl-title {
     font-size: 0.98rem; line-height: 1.3; font-weight: 600;
     color: var(--tdxsl-title-color);
     margin: 0 !important;
@@ -134,14 +186,9 @@ export function buildSquarespaceHtml(
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .tdxsl-grid-v2 .tdxsl-speaker {
+  .tdxsl-page .tdxsl-speaker {
     font-size: 0.85rem; color: var(--tdxsl-meta-color);
     margin: 0 !important;
-  }
-  .tdxsl-grid-v2 .tdxsl-event {
-    font-size: 0.75rem; color: var(--tdxsl-accent);
-    text-transform: uppercase; letter-spacing: 0.04em;
-    margin: 0.15rem 0 0 !important;
   }
 
   /* ── Modal (lightbox player) ───────────────────────────────────────────── */
@@ -179,7 +226,7 @@ export function buildSquarespaceHtml(
   }
   .tdxsl-modal-v2 .tdxsl-modal-close:hover,
   .tdxsl-modal-v2 .tdxsl-modal-close:focus-visible {
-    color: var(--tdxsl-accent, #e62b1e);
+    color: #e62b1e;
     outline: none;
   }
   .tdxsl-modal-v2 .tdxsl-iframe-wrap {
@@ -202,7 +249,10 @@ export function buildSquarespaceHtml(
   body.tdxsl-modal-open { overflow: hidden; }
 </style>
 
-<div class="tdxsl-grid-v2" id="tdxsl-grid" role="list"></div>
+<div class="tdxsl-page" id="tdxsl-page">
+  <h2 class="tdxsl-page-title">${escapeHtml(pageTitle)}</h2>
+  <div id="tdxsl-sections"></div>
+</div>
 
 <div class="tdxsl-modal-v2" id="tdxsl-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Video player">
   <div class="tdxsl-modal-backdrop"></div>
@@ -214,8 +264,8 @@ export function buildSquarespaceHtml(
 
 <script>
 (function () {
-  var TDXSL_VIDEOS = [
-${videoLines}
+  var TDXSL_SECTIONS = [
+${sectionsJs}
   ];
 
   var PLAY_SVG = '<svg viewBox="0 0 68 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M66.5 7.7c-.8-2.9-3-5.1-5.9-5.9C55.4.4 34 .4 34 .4S12.6.4 7.4 1.8C4.5 2.6 2.3 4.8 1.5 7.7 0 13 0 24 0 24s0 11 1.5 16.3c.8 2.9 3 5.1 5.9 5.9C12.6 47.6 34 47.6 34 47.6s21.4 0 26.6-1.4c2.9-.8 5.1-3 5.9-5.9C68 35 68 24 68 24s0-11-1.5-16.3z" fill="#e62b1e"/><path d="M27 34l18-10L27 14z" fill="#fff"/></svg>';
@@ -226,11 +276,8 @@ ${videoLines}
     });
   }
 
-  var grid = document.getElementById("tdxsl-grid");
-  var html = "";
-  for (var i = 0; i < TDXSL_VIDEOS.length; i++) {
-    var v = TDXSL_VIDEOS[i];
-    html += '<button class="tdxsl-tile" type="button" role="listitem" data-tdxsl-id="' + escapeHtml(v.id) + '" aria-label="Play: ' + escapeHtml(v.title) + '">' +
+  function renderTile(v) {
+    return '<button class="tdxsl-tile" type="button" data-tdxsl-id="' + escapeHtml(v.id) + '" aria-label="Play: ' + escapeHtml(v.title) + '">' +
       '<div class="tdxsl-thumb">' +
         '<img src="https://img.youtube.com/vi/' + encodeURIComponent(v.id) + '/hqdefault.jpg" alt="" loading="lazy">' +
         '<div class="tdxsl-play">' + PLAY_SVG + '</div>' +
@@ -238,15 +285,32 @@ ${videoLines}
       '<div class="tdxsl-meta">' +
         '<p class="tdxsl-title">' + escapeHtml(v.title) + '</p>' +
         (v.speaker ? '<p class="tdxsl-speaker">' + escapeHtml(v.speaker) + '</p>' : '') +
-        (v.event ? '<p class="tdxsl-event">' + escapeHtml(v.event) + '</p>' : '') +
       '</div>' +
     '</button>';
   }
-  grid.innerHTML = html;
+
+  var sectionsContainer = document.getElementById("tdxsl-sections");
+  var html = "";
+  for (var s = 0; s < TDXSL_SECTIONS.length; s++) {
+    var section = TDXSL_SECTIONS[s];
+    if (!section.videos || !section.videos.length) continue;
+    var tilesHtml = "";
+    for (var i = 0; i < section.videos.length; i++) tilesHtml += renderTile(section.videos[i]);
+    var countLabel = section.videos.length + " " + (section.videos.length === 1 ? "video" : "videos");
+    html += '<section class="tdxsl-section">' +
+      '<h3 class="tdxsl-section-header">' +
+        '<span class="tdxsl-section-name">' + escapeHtml(section.name) + '</span>' +
+        '<span class="tdxsl-section-count">' + countLabel + '</span>' +
+      '</h3>' +
+      '<div class="tdxsl-grid">' + tilesHtml + '</div>' +
+    '</section>';
+  }
+  sectionsContainer.innerHTML = html;
 
   var modal = document.getElementById("tdxsl-modal");
   var iframeWrap = document.getElementById("tdxsl-iframe-wrap");
   var lastFocus = null;
+  var page = document.getElementById("tdxsl-page");
 
   function openModal(videoId) {
     lastFocus = document.activeElement;
@@ -265,7 +329,8 @@ ${videoLines}
     if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
   }
 
-  grid.addEventListener("click", function (e) {
+  // Delegated click: any .tdxsl-tile inside our page opens the modal.
+  page.addEventListener("click", function (e) {
     var tile = e.target.closest(".tdxsl-tile");
     if (!tile) return;
     var id = tile.getAttribute("data-tdxsl-id");
@@ -282,4 +347,18 @@ ${videoLines}
 })();
 </script>
 `;
+}
+
+/** Server-side HTML escape — used only for the page title in the markup head. */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => {
+    switch (c) {
+      case "&": return "&amp;";
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case '"': return "&quot;";
+      case "'": return "&#39;";
+      default: return c;
+    }
+  });
 }
