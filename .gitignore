@@ -34,8 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
-# local database
+# local database (and any backups/snapshots of it)
 local.db
+local.db.*
 
 # transient script outputs (regenerated on demand from prod)
 scripts/april_2026_validation.csv

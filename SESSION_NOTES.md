@@ -135,6 +135,7 @@ rm .env.production scripts/key_moments_dump.json
 - `scripts/dump_key_moments.py` — Dumps key moments from local.db to JSON for prod push
 - `scripts/push_key_moments_prod.js` — Pushes key moments JSON to production (matches by youtube_id)
 - `scripts/validate_april_2026.js` — Exports per-video April 2026 snapshot data to CSV with YouTube URLs for external spot-checking. Prints distinct snapshot dates (catch missing Mondays) and flags anomalies (negative deltas, zero-April-but-nonzero-current).
+- `scripts/sync_local_from_prod.js` — Mirrors production Turso → `local.db`. Truncates each of the 12 tables locally then re-inserts every row from prod in FK-safe order, verifies counts at the end. **Always back up `local.db` first** (e.g., `Copy-Item local.db local.db.backup.YYYY-MM-DD`). Useful when prod has drifted ahead — e.g., after Sara adds videos via the web app. `local.db` is gitignored so this is purely a developer-machine op; no git/Vercel side effects.
 
 ### Phases
 1. **Phase 1**: Fetch YouTube transcripts → `transcripts` table
