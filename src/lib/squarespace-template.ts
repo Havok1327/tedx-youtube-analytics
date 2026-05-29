@@ -15,6 +15,7 @@ export interface SquarespaceVideo {
   id: string;       // YouTube video id (the 11-char string in the URL)
   title: string;
   speaker: string;  // may be empty
+  format: "talk" | "interview" | "entertainment";
 }
 
 export interface SquarespaceSection {
@@ -42,7 +43,7 @@ export function buildSquarespaceHtml(
       const videoLines = s.videos
         .map(
           (v) =>
-            `      { id: ${JSON.stringify(v.id)}, title: ${JSON.stringify(v.title)}, speaker: ${JSON.stringify(v.speaker)} }`
+            `      { id: ${JSON.stringify(v.id)}, title: ${JSON.stringify(v.title)}, speaker: ${JSON.stringify(v.speaker)}, format: ${JSON.stringify(v.format)} }`
         )
         .join(",\n");
       return `    {\n      name: ${JSON.stringify(s.name)},\n      videos: [\n${videoLines}\n      ]\n    }`;

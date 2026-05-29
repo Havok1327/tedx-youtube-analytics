@@ -57,6 +57,7 @@ export async function GET() {
         youtubeId: videos.youtubeId,
         title: videos.title,
         publishedAt: videos.publishedAt,
+        format: videos.format,
         eventName: events.name,
         speakerFirst: speakers.firstName,
         speakerLast: speakers.lastName,
@@ -77,6 +78,11 @@ export async function GET() {
     };
     const byVideoId = new Map<number, CollectedVideo>();
 
+    const normalizeFormat = (f: string | null): SquarespaceVideo["format"] => {
+      if (f === "interview" || f === "entertainment") return f;
+      return "talk";
+    };
+
     for (const r of rows) {
       const speakerName = [r.speakerFirst, r.speakerLast]
         .filter(Boolean)
@@ -89,6 +95,7 @@ export async function GET() {
           id: r.youtubeId,
           title: r.title || "(Untitled)",
           speaker: speakerName,
+          format: normalizeFormat(r.format),
           eventName: r.eventName || FALLBACK_EVENT_NAME,
           publishedAt: r.publishedAt,
         });
@@ -107,6 +114,7 @@ export async function GET() {
         id: v.id,
         title: v.title,
         speaker: v.speaker,
+        format: v.format,
       });
     }
 
