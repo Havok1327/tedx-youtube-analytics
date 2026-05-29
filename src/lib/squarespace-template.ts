@@ -275,6 +275,26 @@ export function buildSquarespaceHtml(
     color: #e62b1e;
     outline: none;
   }
+  .tdxsl-modal-v2 .tdxsl-modal-share {
+    position: absolute;
+    top: -2.5rem; left: 0;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.5);
+    color: #fff;
+    font-size: 0.9rem;
+    font-family: inherit;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.45rem 0.85rem;
+    border-radius: 4px;
+    transition: background 160ms ease, border-color 160ms ease;
+  }
+  .tdxsl-modal-v2 .tdxsl-modal-share:hover,
+  .tdxsl-modal-v2 .tdxsl-modal-share:focus-visible {
+    background: rgba(255,255,255,0.12);
+    border-color: #fff;
+    outline: none;
+  }
   .tdxsl-modal-v2 .tdxsl-iframe-wrap {
     position: relative;
     width: 100%;
@@ -308,6 +328,7 @@ export function buildSquarespaceHtml(
 <div class="tdxsl-modal-v2" id="tdxsl-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Video player">
   <div class="tdxsl-modal-backdrop"></div>
   <div class="tdxsl-modal-content">
+    <button class="tdxsl-modal-share" id="tdxsl-modal-share" type="button">Copy link</button>
     <button class="tdxsl-modal-close" type="button" data-tdxsl-close="1" aria-label="Close video">×</button>
     <div class="tdxsl-iframe-wrap" id="tdxsl-iframe-wrap"></div>
   </div>
@@ -403,27 +424,67 @@ ${sectionsJs}
 
   var modal = document.getElementById("tdxsl-modal");
   var iframeWrap = document.getElementById("tdxsl-iframe-wrap");
+  var shareBtn = document.getElementById("tdxsl-modal-share");
   var lastFocus = null;
   var page = document.getElementById("tdxsl-page");
+  var currentVideoId = null;
+  var shareLabelTimer = null;
 
-  function openModal(videoId) {
+  // Build set of valid video ids so we ignore garbage in the URL hash.
+  var VALID_IDS = {};
+  for (var vs = 0; vs < TDXSL_SECTIONS.length; vs++) {
+    for (var vi = 0; vi < TDXSL_SECTIONS[vs].videos.length; vi++) {
+      VALID_IDS[TDXSL_SECTIONS[vs].videos[vi].id] = true;
+    }
+  }
+
+  function videoIdFromHash() {
+    var h = location.hash || "";
+    if (h.indexOf("#video=") !== 0) return null;
+    var id = "";
+    try { id = decodeURIComponent(h.substring("#video=".length)); } catch (e) { return null; }
+    return VALID_IDS[id] ? id : null;
+  }
+
+  function setHash(id) {
+    try {
+      var base = location.href.split("#")[0];
+      if (id) {
+        history.pushState({ tdxslModal: id }, "", base + "#video=" + encodeURIComponent(id));
+      } else if (location.hash) {
+        history.pushState({}, "", base);
+      }
+    } catch (e) { /* history API can fail in unusual contexts */ }
+  }
+
+  function openModal(videoId, opts) {
+    opts = opts || {};
+    if (!VALID_IDS[videoId]) return;
+    currentVideoId = videoId;
     lastFocus = document.activeElement;
     iframeWrap.innerHTML = '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(videoId) +
       '?autoplay=1&rel=0&modestbranding=1" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>';
     modal.setAttribute("aria-hidden", "false");
     document.body.classList.add("tdxsl-modal-open");
+    if (shareBtn) {
+      shareBtn.textContent = "Copy link";
+      if (shareLabelTimer) { clearTimeout(shareLabelTimer); shareLabelTimer = null; }
+    }
+    if (!opts.skipHistory) setHash(videoId);
     var closeBtn = modal.querySelector(".tdxsl-modal-close");
     if (closeBtn) closeBtn.focus();
   }
 
-  function closeModal() {
+  function closeModal(opts) {
+    opts = opts || {};
     modal.setAttribute("aria-hidden", "true");
     iframeWrap.innerHTML = "";
     document.body.classList.remove("tdxsl-modal-open");
+    currentVideoId = null;
+    if (!opts.skipHistory && location.hash.indexOf("#video=") === 0) setHash(null);
     if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
   }
 
-  // Delegated click: any .tdxsl-tile inside our page opens the modal.
   page.addEventListener("click", function (e) {
     var tile = e.target.closest(".tdxsl-tile");
     if (!tile) return;
@@ -438,6 +499,56 @@ ${sectionsJs}
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && modal.getAttribute("aria-hidden") === "false") closeModal();
   });
+
+  // Copy-link button: copies the current page URL with #video=ID to clipboard.
+  if (shareBtn) {
+    shareBtn.addEventListener("click", function () {
+      if (!currentVideoId) return;
+      var url = location.href.split("#")[0] + "#video=" + encodeURIComponent(currentVideoId);
+      function showCopied() {
+        shareBtn.textContent = "✓ Link copied";
+        if (shareLabelTimer) clearTimeout(shareLabelTimer);
+        shareLabelTimer = setTimeout(function () { shareBtn.textContent = "Copy link"; }, 2200);
+      }
+      function showFailed() {
+        shareBtn.textContent = "Press Ctrl+C";
+        if (shareLabelTimer) clearTimeout(shareLabelTimer);
+        shareLabelTimer = setTimeout(function () { shareBtn.textContent = "Copy link"; }, 2500);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(showCopied).catch(showFailed);
+      } else {
+        // Old-browser fallback: select a temp textarea, execCommand("copy")
+        try {
+          var ta = document.createElement("textarea");
+          ta.value = url;
+          ta.style.position = "fixed"; ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          var ok = document.execCommand("copy");
+          document.body.removeChild(ta);
+          if (ok) showCopied(); else showFailed();
+        } catch (e) { showFailed(); }
+      }
+    });
+  }
+
+  // Back / forward browser navigation closes-or-reopens the modal.
+  window.addEventListener("popstate", function () {
+    var id = videoIdFromHash();
+    if (id) {
+      if (currentVideoId !== id) openModal(id, { skipHistory: true });
+    } else if (modal.getAttribute("aria-hidden") === "false") {
+      closeModal({ skipHistory: true });
+    }
+  });
+
+  // Initial load: if URL has a valid #video=ID, open it after a short delay
+  // so the grid renders first (improves perceived behavior).
+  var initialId = videoIdFromHash();
+  if (initialId) {
+    setTimeout(function () { openModal(initialId, { skipHistory: true }); }, 100);
+  }
 })();
 </script>
 `;
