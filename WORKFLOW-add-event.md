@@ -95,7 +95,13 @@ Squarespace HTML and want today's view counts):
 > single full refresh is cheap (~15 units), so you can comfortably do it
 > a few times a week.
 
-### Step 5 — Run the AI pipeline (developer-only, optional)
+### Step 5 — Run the AI pipeline (Matt runs this — Sara & London skip to Step 6)
+
+> 📌 **Currently run by Matt.** This step requires command-line access and
+> the Claude CLI installed locally. Sara and London — you can skip directly
+> to Step 6. Matt will handle the AI pipeline run when there's new content
+> to process. When that runs is independent of when the public page is
+> updated, so no need to wait for it.
 
 This populates transcripts, themes, key moments, and clip suggestions
 for the new videos. **Must be run in a separate terminal** — not inside
@@ -222,6 +228,6 @@ speaker picker to add/remove speakers, save. Re-generate + re-paste.
 2. **Add speakers** (same tab) — skip ones already in the list
 3. **Add videos** (Manage → Videos) — paste YouTube URL, pick event + speakers
 4. **Refresh stats** (Manage → Data & Pipeline) — only if you need today's numbers
-5. **AI pipeline** (terminal, optional) — `python scripts/tedx_pipeline.py phase1/2/3/4`
+5. **AI pipeline** (Matt only — Sara & London skip) — `python scripts/tedx_pipeline.py phase1/2/3/4`
 6. **Generate HTML** (Manage → Data & Pipeline → Squarespace Video Grid card)
 7. **Paste into Squarespace** (`/speakertalks` page → Code Block → replace contents)
