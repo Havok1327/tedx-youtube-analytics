@@ -177,6 +177,32 @@ All phases are **incremental** — they skip videos that already have data. Safe
 
 ## Completed Work History
 
+### May 2026 — Squarespace Video Grid v1 (tag: `squarespace-v1`)
+End-to-end public video grid for Squarespace, sourced live from the tracker.
+Replaces Squarespace's native YouTube blocks.
+
+**Feature surface:**
+- New `GET /api/export/squarespace` route generates a self-contained HTML blob from the DB
+- New "Squarespace Video Grid" card on Manage → Data & Pipeline → "Generate Squarespace HTML" button → dialog with copy-to-clipboard + download-as-file
+- Shared template in `src/lib/squarespace-template.ts` keeps the generator and the prototype (`squarespace/sample_grid_v2.html`) aligned
+
+**The generated grid (paste into any Squarespace Code Block on a full-width section):**
+- Top-of-page title ("TEDxStLouis Talks")
+- Live search input (filters across title, speaker, event — counts results inline, ESC clears)
+- Events as sections with header + video count, ordered by **parsed event date** from the "(Month Year)" suffix in event names (not by video upload date — fixes Sisters X being lifted to 2020 by a late upload)
+- Lightbox YouTube player on tile click — visitors stay on Squarespace, X-only close (plus ESC), backdrop click won't dismiss
+- Per-video deep links via URL hash `#video=<youtube_id>` — open the page with that hash → modal auto-opens
+- "Copy link" button in every tile's top-right (hover-reveal on desktop, always visible on touch) — share specific videos without opening them
+- "Copy link" button also in the modal player
+- Browser back/forward navigates between modal-open and modal-closed states
+- Scoped `.tdxsl-*` CSS so it never collides with Squarespace's theme styles
+
+**Not in v1 (next steps when wanted):**
+- Format-based filtering (talks + interviews only, skip entertainment) — slots in when the `format` column ships
+- Configurable page title (currently hardcoded "TEDxStLouis Talks")
+- Sort options (currently event-date DESC, within-event newest first)
+- Visual polish on the event headers (font, color, layout tweaks)
+
 ### May 2026 — Weekly Cron Moved Monday → Wednesday
 - Per Sara/London request: shifted the auto-refresh cron from Monday 08:00 UTC to **Wednesday 08:00 UTC** (`vercel.json` schedule `0 8 * * 3`) so reporting on Wednesdays can use fresh numbers.
 - Replacement (not addition) — one refresh per week, just a different day. Manual "Refresh All Stats" button still works any time.
