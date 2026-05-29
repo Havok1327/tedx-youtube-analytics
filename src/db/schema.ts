@@ -22,6 +22,9 @@ export const videos = sqliteTable("videos", {
   lastUpdated: text("last_updated"),
   eventId: integer("event_id").references(() => events.id),
   excludeFromCharts: integer("exclude_from_charts").default(0).notNull(),
+  // Editorial format used for filtering analytics, the AI pipeline, and
+  // the public Squarespace grid. Values: 'talk' | 'interview' | 'entertainment'.
+  format: text("format").default("talk").notNull(),
 });
 
 export const videoSpeakers = sqliteTable(
