@@ -84,6 +84,71 @@ export default function ManagePage() {
   const [lastRefreshInfo, setLastRefreshInfo] = useState<string | null>(null);
   const [togglingCron, setTogglingCron] = useState(false);
 
+  // Squarespace HTML export
+  const [generatingSqs, setGeneratingSqs] = useState(false);
+  const [sqsHtml, setSqsHtml] = useState<string | null>(null);
+  const [sqsCount, setSqsCount] = useState<number | null>(null);
+  const [sqsBytes, setSqsBytes] = useState<number | null>(null);
+  const [sqsDialogOpen, setSqsDialogOpen] = useState(false);
+  const [sqsError, setSqsError] = useState<string | null>(null);
+  const [sqsCopied, setSqsCopied] = useState(false);
+
+  const handleGenerateSquarespace = async () => {
+    setGeneratingSqs(true);
+    setSqsError(null);
+    setSqsCopied(false);
+    try {
+      const res = await fetch("/api/export/squarespace");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Request failed" }));
+        setSqsError(err.error || `Server returned ${res.status}`);
+        setSqsDialogOpen(true);
+        return;
+      }
+      const data = await res.json();
+      setSqsHtml(data.html);
+      setSqsCount(data.videoCount);
+      setSqsBytes(data.byteSize);
+      setSqsDialogOpen(true);
+    } catch (e) {
+      setSqsError(String(e));
+      setSqsDialogOpen(true);
+    } finally {
+      setGeneratingSqs(false);
+    }
+  };
+
+  const handleCopySqsHtml = async () => {
+    if (!sqsHtml) return;
+    try {
+      await navigator.clipboard.writeText(sqsHtml);
+      setSqsCopied(true);
+      setTimeout(() => setSqsCopied(false), 2500);
+    } catch {
+      // Clipboard API can fail in non-secure contexts — fall back to select-all
+      const ta = document.getElementById("sqs-html-textarea") as HTMLTextAreaElement | null;
+      if (ta) {
+        ta.select();
+        document.execCommand("copy");
+        setSqsCopied(true);
+        setTimeout(() => setSqsCopied(false), 2500);
+      }
+    }
+  };
+
+  const handleDownloadSqsHtml = () => {
+    if (!sqsHtml) return;
+    const blob = new Blob([sqsHtml], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tedxstl-squarespace-grid-${new Date().toISOString().slice(0, 10)}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const fetchSettings = async () => {
     try {
       const res = await fetch("/api/settings");
@@ -555,6 +620,26 @@ export default function ManagePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Squarespace HTML Export */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Squarespace Video Grid</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Generate a self-contained HTML video grid you can paste into a Squarespace Code Block. The grid uses every non-excluded video in the tracker, plays videos in an inline lightbox (no YouTube redirect), and refreshes every time you re-generate.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={handleGenerateSquarespace} disabled={generatingSqs}>
+                  {generatingSqs ? "Generating..." : "Generate Squarespace HTML"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Re-generate any time you add new videos — Squarespace just needs a fresh paste.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ── Videos Tab ───────────────────────────────────────── */}
@@ -814,6 +899,48 @@ export default function ManagePage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Squarespace HTML Export Dialog */}
+      <Dialog open={sqsDialogOpen} onOpenChange={setSqsDialogOpen}>
+        <DialogContent className="sm:!max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Squarespace HTML</DialogTitle>
+            <DialogDescription>
+              {sqsError
+                ? "Something went wrong generating the HTML."
+                : sqsCount != null
+                  ? `${sqsCount} videos${sqsBytes ? ` · ${(sqsBytes / 1024).toFixed(1)} KB` : ""}. Paste this into a Squarespace Code Block on a full-width section.`
+                  : "Generating..."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {sqsError ? (
+            <p className="text-sm text-destructive">{sqsError}</p>
+          ) : sqsHtml ? (
+            <div className="space-y-3">
+              <textarea
+                id="sqs-html-textarea"
+                readOnly
+                value={sqsHtml}
+                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                className="w-full h-64 rounded-md border bg-muted/30 p-2 font-mono text-xs"
+                spellCheck={false}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button onClick={handleCopySqsHtml} size="sm">
+                  {sqsCopied ? "Copied!" : "Copy to Clipboard"}
+                </Button>
+                <Button onClick={handleDownloadSqsHtml} variant="outline" size="sm">
+                  Download as .html
+                </Button>
+                <p className="text-xs text-muted-foreground ml-auto">
+                  Tip: click inside the box to select all.
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
