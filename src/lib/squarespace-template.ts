@@ -75,8 +75,54 @@ export function buildSquarespaceHtml(
     font-size: 2.75rem !important;
     font-weight: 700;
     color: var(--tdxsl-title-color);
-    margin: 0 0 2rem !important;
+    margin: 0 0 1.5rem !important;
     text-align: center;
+  }
+
+  /* ── Search ───────────────────────────────────────────────────────────── */
+  .tdxsl-page .tdxsl-search {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: 520px;
+    margin: 0 auto 2.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .tdxsl-page .tdxsl-search input {
+    flex: 1 1 280px;
+    padding: 0.65rem 1.25rem;
+    font-size: 1rem;
+    border: 2px solid #ddd;
+    border-radius: 24px;
+    background: #fff;
+    color: inherit;
+    font-family: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .tdxsl-page .tdxsl-search input:focus {
+    outline: none;
+    border-color: var(--tdxsl-accent);
+  }
+  .tdxsl-page .tdxsl-search-count {
+    font-size: 0.9rem;
+    color: var(--tdxsl-meta-color);
+    white-space: nowrap;
+    min-width: 5rem;
+    text-align: left;
+  }
+  .tdxsl-page .tdxsl-no-results {
+    text-align: center;
+    padding: 3rem 1rem;
+    font-size: 1.05rem;
+    color: var(--tdxsl-meta-color);
+    margin: 0;
+  }
+  .tdxsl-page .tdxsl-tile[hidden],
+  .tdxsl-page .tdxsl-section[hidden],
+  .tdxsl-page .tdxsl-no-results[hidden] {
+    display: none !important;
   }
 
   /* ── Sections ──────────────────────────────────────────────────────────── */
@@ -251,7 +297,12 @@ export function buildSquarespaceHtml(
 
 <div class="tdxsl-page" id="tdxsl-page">
   <h2 class="tdxsl-page-title">${escapeHtml(pageTitle)}</h2>
+  <div class="tdxsl-search">
+    <input type="search" id="tdxsl-search-input" placeholder="Search by title, speaker, or event…" aria-label="Search videos" autocomplete="off">
+    <span class="tdxsl-search-count" id="tdxsl-search-count" aria-live="polite"></span>
+  </div>
   <div id="tdxsl-sections"></div>
+  <p class="tdxsl-no-results" id="tdxsl-no-results" hidden>No videos match your search.</p>
 </div>
 
 <div class="tdxsl-modal-v2" id="tdxsl-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Video player">
@@ -276,8 +327,9 @@ ${sectionsJs}
     });
   }
 
-  function renderTile(v) {
-    return '<button class="tdxsl-tile" type="button" data-tdxsl-id="' + escapeHtml(v.id) + '" aria-label="Play: ' + escapeHtml(v.title) + '">' +
+  function renderTile(v, eventName) {
+    var haystack = (v.title + " " + (v.speaker || "") + " " + (eventName || "")).toLowerCase();
+    return '<button class="tdxsl-tile" type="button" data-tdxsl-id="' + escapeHtml(v.id) + '" data-tdxsl-search="' + escapeHtml(haystack) + '" aria-label="Play: ' + escapeHtml(v.title) + '">' +
       '<div class="tdxsl-thumb">' +
         '<img src="https://img.youtube.com/vi/' + encodeURIComponent(v.id) + '/hqdefault.jpg" alt="" loading="lazy">' +
         '<div class="tdxsl-play">' + PLAY_SVG + '</div>' +
@@ -291,12 +343,14 @@ ${sectionsJs}
 
   var sectionsContainer = document.getElementById("tdxsl-sections");
   var html = "";
+  var totalVideos = 0;
   for (var s = 0; s < TDXSL_SECTIONS.length; s++) {
     var section = TDXSL_SECTIONS[s];
     if (!section.videos || !section.videos.length) continue;
     var tilesHtml = "";
-    for (var i = 0; i < section.videos.length; i++) tilesHtml += renderTile(section.videos[i]);
+    for (var i = 0; i < section.videos.length; i++) tilesHtml += renderTile(section.videos[i], section.name);
     var countLabel = section.videos.length + " " + (section.videos.length === 1 ? "video" : "videos");
+    totalVideos += section.videos.length;
     html += '<section class="tdxsl-section">' +
       '<h3 class="tdxsl-section-header">' +
         '<span class="tdxsl-section-name">' + escapeHtml(section.name) + '</span>' +
@@ -306,6 +360,46 @@ ${sectionsJs}
     '</section>';
   }
   sectionsContainer.innerHTML = html;
+
+  // ── Search / filter ─────────────────────────────────────────────────────
+  var searchInput = document.getElementById("tdxsl-search-input");
+  var searchCount = document.getElementById("tdxsl-search-count");
+  var noResults = document.getElementById("tdxsl-no-results");
+
+  function applySearch(q) {
+    q = String(q || "").toLowerCase().trim();
+    var visibleCount = 0;
+    var tiles = document.querySelectorAll(".tdxsl-page .tdxsl-tile");
+    for (var i = 0; i < tiles.length; i++) {
+      var hay = tiles[i].getAttribute("data-tdxsl-search") || "";
+      var match = !q || hay.indexOf(q) !== -1;
+      tiles[i].hidden = !match;
+      if (match) visibleCount++;
+    }
+    var sections = document.querySelectorAll(".tdxsl-page .tdxsl-section");
+    for (var j = 0; j < sections.length; j++) {
+      var visibleTiles = sections[j].querySelectorAll(".tdxsl-tile:not([hidden])");
+      sections[j].hidden = visibleTiles.length === 0;
+    }
+    noResults.hidden = visibleCount > 0;
+    if (!q) {
+      searchCount.textContent = "";
+    } else {
+      searchCount.textContent = visibleCount + " of " + totalVideos;
+    }
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener("input", function (e) {
+      applySearch(e.target.value);
+    });
+    searchInput.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && searchInput.value) {
+        searchInput.value = "";
+        applySearch("");
+      }
+    });
+  }
 
   var modal = document.getElementById("tdxsl-modal");
   var iframeWrap = document.getElementById("tdxsl-iframe-wrap");
