@@ -80,6 +80,7 @@ interface VideoDetail {
   eventId: number | null;
   eventName: string | null;
   excludeFromCharts: number;
+  format: string;
   speakers: { id: number; firstName: string; lastName: string }[];
   history: { id: number; views: number; likes: number; recordedAt: string }[];
   ageInDays: number | null;
@@ -115,6 +116,7 @@ export default function VideoDetailPage() {
   const [events, setEvents] = useState<EventOption[]>([]);
   const [speakers, setSpeakers] = useState<SpeakerOption[]>([]);
   const [editEventId, setEditEventId] = useState<string>("");
+  const [editFormat, setEditFormat] = useState<string>("talk");
   const [editSpeakerIds, setEditSpeakerIds] = useState<string[]>([]);
   const [speakerSearch, setSpeakerSearch] = useState("");
   const [saving, setSaving] = useState(false);
@@ -141,6 +143,7 @@ export default function VideoDetailPage() {
   const openEditDialog = async () => {
     setEditError(null);
     setEditEventId(video?.eventId?.toString() || "");
+    setEditFormat(video?.format || "talk");
     setEditSpeakerIds(video?.speakers.map((s) => s.id.toString()) || []);
     setEditOpen(true);
 
@@ -173,6 +176,7 @@ export default function VideoDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: editEventId && editEventId !== "none" ? parseInt(editEventId) : null,
+          format: editFormat,
           speakerIds: editSpeakerIds.map((s) => parseInt(s)),
         }),
       });
@@ -556,6 +560,20 @@ export default function VideoDetailPage() {
                       {e.name}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Format</Label>
+              <Select value={editFormat} onValueChange={setEditFormat}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="talk">Talk — solo presenter, no Q&amp;A</SelectItem>
+                  <SelectItem value="interview">Interview — Q&amp;A, fireside chat, panel</SelectItem>
+                  <SelectItem value="entertainment">Entertainment — music, dance, performance</SelectItem>
                 </SelectContent>
               </Select>
             </div>

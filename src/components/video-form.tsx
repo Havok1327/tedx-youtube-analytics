@@ -38,10 +38,13 @@ interface VideoPreview {
   likes: number;
 }
 
+type VideoFormat = "talk" | "interview" | "entertainment";
+
 export function VideoForm({ events, speakers, onSuccess }: VideoFormProps) {
   const [url, setUrl] = useState("");
   const [preview, setPreview] = useState<VideoPreview | null>(null);
   const [eventId, setEventId] = useState<string>("");
+  const [format, setFormat] = useState<VideoFormat>("talk");
   const [selectedSpeakers, setSelectedSpeakers] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -90,6 +93,7 @@ export function VideoForm({ events, speakers, onSuccess }: VideoFormProps) {
           likes: preview.likes,
           eventId: eventId ? parseInt(eventId) : null,
           speakerIds: selectedSpeakers.map((s) => parseInt(s)),
+          format,
         }),
       });
       const data = await res.json();
@@ -97,6 +101,7 @@ export function VideoForm({ events, speakers, onSuccess }: VideoFormProps) {
         setUrl("");
         setPreview(null);
         setEventId("");
+        setFormat("talk");
         setSelectedSpeakers([]);
         onSuccess();
       } else {
@@ -166,6 +171,20 @@ export function VideoForm({ events, speakers, onSuccess }: VideoFormProps) {
                       {e.name}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Format</Label>
+              <Select value={format} onValueChange={(v) => setFormat(v as VideoFormat)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="talk">Talk — solo presenter, no Q&amp;A</SelectItem>
+                  <SelectItem value="interview">Interview — Q&amp;A, fireside chat, panel</SelectItem>
+                  <SelectItem value="entertainment">Entertainment — music, dance, performance</SelectItem>
                 </SelectContent>
               </Select>
             </div>

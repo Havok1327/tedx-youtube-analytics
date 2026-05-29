@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
         eventId: videos.eventId,
         eventName: events.name,
         excludeFromCharts: videos.excludeFromCharts,
+        format: videos.format,
       })
       .from(videos)
       .leftJoin(events, eq(videos.eventId, events.id))
@@ -101,10 +102,20 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+const ALLOWED_FORMATS = ["talk", "interview", "entertainment"] as const;
+type VideoFormat = (typeof ALLOWED_FORMATS)[number];
+
+function normalizeFormat(input: unknown): VideoFormat {
+  if (typeof input === "string" && (ALLOWED_FORMATS as readonly string[]).includes(input)) {
+    return input as VideoFormat;
+  }
+  return "talk";
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { youtubeId, url, title, publishedAt, views, likes, eventId, speakerIds } = body;
+    const { youtubeId, url, title, publishedAt, views, likes, eventId, speakerIds, format } = body;
 
     if (!youtubeId) {
       return NextResponse.json({ error: "youtubeId is required" }, { status: 400 });
@@ -121,6 +132,7 @@ export async function POST(request: NextRequest) {
         likes: likes || 0,
         lastUpdated: new Date().toISOString(),
         eventId: eventId || null,
+        format: normalizeFormat(format),
       })
       .returning()
       .get();

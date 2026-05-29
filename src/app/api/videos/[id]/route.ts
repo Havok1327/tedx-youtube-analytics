@@ -29,6 +29,7 @@ export async function GET(
         eventId: videos.eventId,
         eventName: events.name,
         excludeFromCharts: videos.excludeFromCharts,
+        format: videos.format,
       })
       .from(videos)
       .leftJoin(events, eq(videos.eventId, events.id))
@@ -157,7 +158,9 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { title, url, eventId, speakerIds, views, likes, publishedAt, excludeFromCharts } = body;
+    const { title, url, eventId, speakerIds, views, likes, publishedAt, excludeFromCharts, format } = body;
+
+    const ALLOWED_FORMATS = ["talk", "interview", "entertainment"];
 
     const updateData: Record<string, unknown> = {};
     if (title !== undefined) updateData.title = title;
@@ -167,6 +170,9 @@ export async function PUT(
     if (likes !== undefined) updateData.likes = likes;
     if (publishedAt !== undefined) updateData.publishedAt = publishedAt;
     if (excludeFromCharts !== undefined) updateData.excludeFromCharts = excludeFromCharts ? 1 : 0;
+    if (format !== undefined && typeof format === "string" && ALLOWED_FORMATS.includes(format)) {
+      updateData.format = format;
+    }
 
     if (Object.keys(updateData).length > 0) {
       await db.update(videos).set(updateData).where(eq(videos.id, videoId));
