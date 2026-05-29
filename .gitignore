@@ -43,6 +43,10 @@ scripts/april_2026_validation.csv
 scripts/key_moments_dump.json
 scripts/__pycache__/
 
+# Prod snapshots — JSON dumps of production data used as rollback points.
+# Contains real data (titles, speaker names, view counts). Keep local.
+backups/
+
 # vercel
 .vercel
 
