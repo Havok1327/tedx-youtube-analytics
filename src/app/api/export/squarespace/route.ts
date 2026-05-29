@@ -12,6 +12,39 @@ export const dynamic = "force-dynamic";
 
 const FALLBACK_EVENT_NAME = "Other";
 
+/**
+ * Parse "(Month Year)" out of an event name and return a sortable date.
+ *
+ * Event names follow the convention "Title (Month YYYY)" — e.g.
+ * "Sisters X (Dec 2013)", "Future Focus (September 2025)". This is much
+ * more reliable for ordering than video publish dates, which can be
+ * years later than the event itself if a talk was uploaded late.
+ *
+ * Returns null if the name doesn't match the pattern — those events
+ * fall to the end of the list.
+ */
+function parseEventDate(name: string): Date | null {
+  const m = name.match(/\(([A-Za-z]+)\s+(\d{4})\)\s*$/);
+  if (!m) return null;
+  const monthMap: Record<string, number> = {
+    january: 0, jan: 0,
+    february: 1, feb: 1,
+    march: 2, mar: 2,
+    april: 3, apr: 3,
+    may: 4,
+    june: 5, jun: 5,
+    july: 6, jul: 6,
+    august: 7, aug: 7,
+    september: 8, sept: 8, sep: 8,
+    october: 9, oct: 9,
+    november: 10, nov: 10,
+    december: 11, dec: 11,
+  };
+  const month = monthMap[m[1].toLowerCase()];
+  if (month === undefined) return null;
+  return new Date(Date.UTC(parseInt(m[2], 10), month, 1));
+}
+
 export async function GET() {
   try {
     // Fetch every non-excluded video joined with event + all its speakers.
@@ -66,10 +99,7 @@ export async function GET() {
       }
     }
 
-    // ── Step 2: bucket videos by event (preserving newest-first order) ───────
-    // Because we iterated rows in publishedAt DESC order, the first time we
-    // see an event determines its rank — which gives us "events sorted by
-    // their most-recent video" for free.
+    // ── Step 2: bucket videos by event (videos remain in publishedAt DESC) ───
     const sectionMap = new Map<string, SquarespaceVideo[]>();
     for (const v of byVideoId.values()) {
       if (!sectionMap.has(v.eventName)) sectionMap.set(v.eventName, []);
@@ -80,15 +110,29 @@ export async function GET() {
       });
     }
 
-    // ── Step 3: emit sections in insertion order, fallback "Other" last ──────
+    // ── Step 3: sort sections by EVENT date (parsed from "(Month Year)") ─────
+    // Events whose name doesn't match the pattern (or the fallback "Other"
+    // bucket) sort to the end, oldest-first within themselves so they're
+    // deterministic.
     const sections: SquarespaceSection[] = [];
+    const unparseable: SquarespaceSection[] = [];
+
     for (const [name, vids] of sectionMap.entries()) {
-      if (name !== FALLBACK_EVENT_NAME) sections.push({ name, videos: vids });
+      const date = parseEventDate(name);
+      if (name === FALLBACK_EVENT_NAME || !date) {
+        unparseable.push({ name, videos: vids });
+      } else {
+        sections.push({ name, videos: vids });
+      }
     }
-    const fallback = sectionMap.get(FALLBACK_EVENT_NAME);
-    if (fallback && fallback.length) {
-      sections.push({ name: FALLBACK_EVENT_NAME, videos: fallback });
-    }
+
+    sections.sort((a, b) => {
+      const da = parseEventDate(a.name)!.getTime();
+      const db = parseEventDate(b.name)!.getTime();
+      return db - da; // newest event first
+    });
+    unparseable.sort((a, b) => a.name.localeCompare(b.name));
+    sections.push(...unparseable);
 
     const html = buildSquarespaceHtml(sections);
     const totalVideos = sections.reduce((n, s) => n + s.videos.length, 0);
