@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatSpeakerName } from "@/lib/speaker-name";
 
 interface Event {
   id: number;
@@ -358,7 +359,7 @@ export default function ManagePage() {
   };
 
   const handleAddSpeaker = async () => {
-    if (!newLastName.trim()) return;
+    if (!newFirstName.trim() && !newLastName.trim()) return;
     setAddingSpeaker(true);
     try {
       const res = await fetch("/api/speakers", {
@@ -377,7 +378,8 @@ export default function ManagePage() {
   };
 
   const handleEditSpeaker = async () => {
-    if (!editingSpeaker || !editingSpeakerLast.trim()) return;
+    if (!editingSpeaker) return;
+    if (!editingSpeakerFirst.trim() && !editingSpeakerLast.trim()) return;
     try {
       const res = await fetch(`/api/speakers/${editingSpeaker.id}`, {
         method: "PUT",
@@ -663,7 +665,7 @@ export default function ManagePage() {
                   .filter((v) => {
                     if (!videoSearch.trim()) return true;
                     const q = videoSearch.toLowerCase();
-                    const speakerNames = v.speakers.map((s) => `${s.firstName} ${s.lastName}`).join(" ");
+                    const speakerNames = v.speakers.map((s) => formatSpeakerName(s)).join(" ");
                     return (
                       v.title?.toLowerCase().includes(q) ||
                       v.eventName?.toLowerCase().includes(q) ||
@@ -675,7 +677,7 @@ export default function ManagePage() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{v.title || "Untitled"}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {v.speakers.map((s) => `${s.firstName} ${s.lastName}`).join(", ") || "No speaker"}
+                          {v.speakers.map((s) => formatSpeakerName(s)).join(", ") || "No speaker"}
                           {v.eventName ? ` · ${v.eventName}` : ""}
                         </p>
                       </div>
@@ -769,7 +771,7 @@ export default function ManagePage() {
                       <div className="max-h-[200px] overflow-y-auto rounded-md border p-2 space-y-2 min-w-0">
                         {eventSpeakers.map((s) => (
                           <div key={s.id} className="text-sm min-w-0">
-                            <span className="font-medium">{s.firstName} {s.lastName}</span>
+                            <span className="font-medium">{formatSpeakerName(s)}</span>
                             {s.videos.length > 0 && (
                               <p className="text-xs text-muted-foreground truncate max-w-full">
                                 {s.videos.join("; ")}
@@ -819,7 +821,7 @@ export default function ManagePage() {
                   onChange={(e) => setNewLastName(e.target.value)}
                   className="max-w-[200px]"
                 />
-                <Button onClick={handleAddSpeaker} disabled={addingSpeaker || !newLastName.trim()}>
+                <Button onClick={handleAddSpeaker} disabled={addingSpeaker || (!newFirstName.trim() && !newLastName.trim())}>
                   Add Speaker
                 </Button>
               </div>
@@ -847,7 +849,7 @@ export default function ManagePage() {
                       }}
                       className="text-sm px-2 py-1.5 text-left rounded-md hover:bg-accent transition-colors truncate"
                     >
-                      {s.firstName} {s.lastName}
+                      {formatSpeakerName(s)}
                     </button>
                   ))}
               </div>
@@ -884,7 +886,7 @@ export default function ManagePage() {
                     <Button
                       variant="destructive"
                       onClick={() => {
-                        handleDeleteSpeaker(editingSpeaker.id, `${editingSpeaker.firstName} ${editingSpeaker.lastName}`);
+                        handleDeleteSpeaker(editingSpeaker.id, formatSpeakerName(editingSpeaker));
                         setEditingSpeaker(null);
                       }}
                     >
@@ -892,7 +894,7 @@ export default function ManagePage() {
                     </Button>
                     <div className="flex gap-2">
                       <Button variant="ghost" onClick={() => setEditingSpeaker(null)}>Cancel</Button>
-                      <Button onClick={handleEditSpeaker} disabled={!editingSpeakerLast.trim()}>Save</Button>
+                      <Button onClick={handleEditSpeaker} disabled={!editingSpeakerFirst.trim() && !editingSpeakerLast.trim()}>Save</Button>
                     </div>
                   </div>
                 </div>

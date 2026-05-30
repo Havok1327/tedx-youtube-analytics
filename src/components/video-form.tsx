@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatSpeakerName } from "@/lib/speaker-name";
 import {
   Select,
   SelectContent,
@@ -203,7 +204,7 @@ export function VideoForm({ events, speakers, onSuccess }: VideoFormProps) {
                         : "bg-background hover:bg-accent border-border"
                     }`}
                   >
-                    {s.firstName} {s.lastName}
+                    {formatSpeakerName(s)}
                   </button>
                 ))}
               </div>

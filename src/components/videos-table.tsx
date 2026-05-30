@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatSpeakerName } from "@/lib/speaker-name";
 import {
   Select,
   SelectContent,
@@ -126,7 +127,7 @@ export function VideosTable({ videos, events }: VideosTableProps) {
   }, [videos, search, eventFilter, sortField, sortDirection]);
 
   const speakerNames = (v: Video) =>
-    v.speakers.map((s) => `${s.firstName} ${s.lastName}`.trim()).join(", ") || "Unknown";
+    v.speakers.map((s) => formatSpeakerName(s)).join(", ") || "Unknown";
 
   const exportCsv = useCallback(() => {
     const escapeField = (val: string) => {

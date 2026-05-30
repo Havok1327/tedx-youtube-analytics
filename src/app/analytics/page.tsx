@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { FormatFilter, useFormatFilter, buildFormatsParam, type VideoFormat } from "@/components/format-filter";
+import { formatSpeakerName } from "@/lib/speaker-name";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -352,7 +353,7 @@ function SpeakerDeepDive({ formats }: { formats: VideoFormat[] }) {
             <SelectContent>
               {filteredSpeakers.map((s) => (
                 <SelectItem key={s.id} value={s.id.toString()}>
-                  {s.firstName} {s.lastName} ({s.videoCount} video{s.videoCount !== 1 ? "s" : ""})
+                  {formatSpeakerName(s)} ({s.videoCount} video{s.videoCount !== 1 ? "s" : ""})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -366,7 +367,7 @@ function SpeakerDeepDive({ formats }: { formats: VideoFormat[] }) {
         <>
           <Card>
             <CardHeader className="space-y-3">
-              <CardTitle>{speakerData.speaker.firstName} {speakerData.speaker.lastName} — View History</CardTitle>
+              <CardTitle>{formatSpeakerName(speakerData.speaker)} — View History</CardTitle>
               <DateRangePicker from={chartFrom} to={chartTo} onChange={handleChartDateChange} />
             </CardHeader>
             <CardContent>
@@ -438,7 +439,7 @@ function VideoComparison({ includeExcluded, formats }: { includeExcluded: boolea
       const q = search.toLowerCase();
       vids = vids.filter((v) =>
         (v.title || "").toLowerCase().includes(q) ||
-        v.speakers?.some((s) => `${s.firstName} ${s.lastName}`.toLowerCase().includes(q))
+        v.speakers?.some((s) => formatSpeakerName(s).toLowerCase().includes(q))
       );
     }
     return vids.slice(0, 50);
@@ -500,7 +501,7 @@ function VideoComparison({ includeExcluded, formats }: { includeExcluded: boolea
                 }`}
               >
                 <span className="truncate flex-1 mr-2">
-                  {v.speakers?.map((s) => `${s.firstName} ${s.lastName}`).join(", ") || "Unknown"}: {v.title || "Untitled"}
+                  {v.speakers?.map((s) => formatSpeakerName(s)).join(", ") || "Unknown"}: {v.title || "Untitled"}
                 </span>
                 <span className="shrink-0 text-xs">{(v.views || 0).toLocaleString()}</span>
               </button>
@@ -692,7 +693,7 @@ function SpeakerLeaderboard({ includeExcluded, formats }: { includeExcluded: boo
           const vpd = ageDays ? views / ageDays : 0;
 
           for (const s of v.speakers) {
-            const name = `${s.firstName} ${s.lastName}`.trim();
+            const name = formatSpeakerName(s);
             const existing = speakerMap.get(name) || { videoCount: 0, totalViews: 0, totalLikes: 0, totalVpd: 0, topVideo: "", topViews: 0 };
             existing.videoCount++;
             existing.totalViews += views;

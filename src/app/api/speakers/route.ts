@@ -24,16 +24,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { firstName, lastName } = body;
 
-    if (!lastName || !lastName.trim()) {
-      return NextResponse.json({ error: "Last name is required" }, { status: 400 });
+    const fn = (firstName || "").trim();
+    const ln = (lastName || "").trim();
+
+    // At least one of firstName/lastName must be non-empty. This lets
+    // mononymic acts (e.g. "Foxing", "MADCO") be entered as a single name
+    // without forcing a placeholder character in the other field.
+    if (!fn && !ln) {
+      return NextResponse.json(
+        { error: "Enter at least a first or last name" },
+        { status: 400 }
+      );
     }
 
     const inserted = await db
       .insert(speakers)
-      .values({
-        firstName: (firstName || "").trim(),
-        lastName: lastName.trim(),
-      })
+      .values({ firstName: fn, lastName: ln })
       .returning()
       .get();
 

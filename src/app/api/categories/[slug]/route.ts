@@ -5,6 +5,7 @@ import {
   videoSpeakers, speakers, events, videoSummaries,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { formatSpeakerName } from "@/lib/speaker-name";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export async function GET(
 
     const speakersByVideo = new Map<number, string[]>();
     for (const row of speakerRows) {
-      const name = `${row.firstName} ${row.lastName}`;
+      const name = formatSpeakerName(row);
       const list = speakersByVideo.get(row.videoId) || [];
       list.push(name);
       speakersByVideo.set(row.videoId, list);

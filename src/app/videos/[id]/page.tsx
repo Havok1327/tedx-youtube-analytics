@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatSpeakerName } from "@/lib/speaker-name";
 import {
   Dialog,
   DialogContent,
@@ -248,7 +249,7 @@ export default function VideoDetailPage() {
   }
 
   const speakerNames = video.speakers
-    .map((s) => `${s.firstName} ${s.lastName}`.trim())
+    .map((s) => formatSpeakerName(s))
     .join(", ") || "Unknown Speaker";
 
   const historyData = [...video.history]
@@ -587,7 +588,7 @@ export default function VideoDetailPage() {
                     if (!s) return null;
                     return (
                       <span key={id} className="flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-primary text-primary-foreground">
-                        {s.firstName} {s.lastName}
+                        {formatSpeakerName(s)}
                         <button type="button" onClick={() => toggleEditSpeaker(id)} className="opacity-70 hover:opacity-100">&times;</button>
                       </span>
                     );
@@ -604,7 +605,7 @@ export default function VideoDetailPage() {
                   {speakers
                     .filter((s) => {
                       const q = speakerSearch.toLowerCase();
-                      return `${s.firstName} ${s.lastName}`.toLowerCase().includes(q);
+                      return formatSpeakerName(s).toLowerCase().includes(q);
                     })
                     .map((s) => {
                       const sid = s.id.toString();
@@ -616,7 +617,7 @@ export default function VideoDetailPage() {
                           onClick={() => { toggleEditSpeaker(sid); setSpeakerSearch(""); }}
                           className={`w-full text-left px-3 py-1.5 text-sm hover:bg-accent transition-colors ${selected ? "font-medium" : ""}`}
                         >
-                          {selected ? "✓ " : ""}{s.firstName} {s.lastName}
+                          {selected ? "✓ " : ""}{formatSpeakerName(s)}
                         </button>
                       );
                     })}

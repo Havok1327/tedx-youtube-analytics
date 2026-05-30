@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { clips, videos, categories, videoSpeakers, speakers } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { formatSpeakerName } from "@/lib/speaker-name";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     const speakersByVideo = new Map<number, string[]>();
     for (const row of speakerRows) {
-      const name = `${row.firstName} ${row.lastName}`;
+      const name = formatSpeakerName(row);
       const list = speakersByVideo.get(row.videoId) || [];
       list.push(name);
       speakersByVideo.set(row.videoId, list);

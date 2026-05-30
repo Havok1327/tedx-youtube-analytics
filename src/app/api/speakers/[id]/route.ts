@@ -19,13 +19,19 @@ export async function PUT(
     const body = await request.json();
     const { firstName, lastName } = body;
 
-    if (!lastName || !lastName.trim()) {
-      return NextResponse.json({ error: "Last name is required" }, { status: 400 });
+    const fn = (firstName || "").trim();
+    const ln = (lastName || "").trim();
+
+    if (!fn && !ln) {
+      return NextResponse.json(
+        { error: "Enter at least a first or last name" },
+        { status: 400 }
+      );
     }
 
     await db
       .update(speakers)
-      .set({ firstName: (firstName || "").trim(), lastName: lastName.trim() })
+      .set({ firstName: fn, lastName: ln })
       .where(eq(speakers.id, speakerId));
 
     const updated = await db.select().from(speakers).where(eq(speakers.id, speakerId)).get();

@@ -7,6 +7,7 @@ import {
   type SquarespaceSection,
   type SquarespaceVideo,
 } from "@/lib/squarespace-template";
+import { formatSpeakerName } from "@/lib/speaker-name";
 
 export const dynamic = "force-dynamic";
 
@@ -84,10 +85,7 @@ export async function GET() {
     };
 
     for (const r of rows) {
-      const speakerName = [r.speakerFirst, r.speakerLast]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
+      const speakerName = formatSpeakerName({ firstName: r.speakerFirst, lastName: r.speakerLast });
       const existing = byVideoId.get(r.videoId);
 
       if (!existing) {

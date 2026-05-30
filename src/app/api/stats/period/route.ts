@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { videos, statsHistory, events, videoSpeakers, speakers } from "@/db/schema";
 import { and, eq, desc, ne, inArray } from "drizzle-orm";
 import { parseFormatsParam, isAllFormatsSelected } from "@/lib/format-filter";
+import { formatSpeakerName } from "@/lib/speaker-name";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export async function GET(request: Request) {
     const speakersByVideo = new Map<number, string>();
     for (const vs of allVS) {
       const existing = speakersByVideo.get(vs.videoId);
-      const name = `${vs.firstName} ${vs.lastName}`.trim();
+      const name = formatSpeakerName(vs);
       speakersByVideo.set(vs.videoId, existing ? `${existing}, ${name}` : name);
     }
 
