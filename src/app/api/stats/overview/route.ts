@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { videos, events, statsHistory } from "@/db/schema";
-import { sql, eq, desc, ne, and, gte } from "drizzle-orm";
+import { sql, eq, desc, ne, and, gte, inArray } from "drizzle-orm";
+import { parseFormatsParam, isAllFormatsSelected } from "@/lib/format-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,14 @@ export async function GET(request: NextRequest) {
     const includeExcluded = searchParams.get("includeExcluded") === "true";
     const excludeFilter = includeExcluded ? undefined : ne(videos.excludeFromCharts, 1);
 
+    const formats = parseFormatsParam(searchParams.get("formats"));
+    const formatFilter = isAllFormatsSelected(formats)
+      ? undefined
+      : inArray(videos.format, formats);
+
+    // Composed filter — `and()` is undefined-safe so we can mix presence/absence
+    const where = and(excludeFilter, formatFilter);
+
     // Summary stats
     const summary = await db
       .select({
@@ -19,7 +28,7 @@ export async function GET(request: NextRequest) {
         totalLikes: sql<number>`coalesce(sum(${videos.likes}), 0)`,
       })
       .from(videos)
-      .where(excludeFilter)
+      .where(where)
       .get();
 
     // Average views per day across all videos
@@ -32,7 +41,7 @@ export async function GET(request: NextRequest) {
         ), 0)`,
       })
       .from(videos)
-      .where(excludeFilter)
+      .where(where)
       .get();
 
     // Top 15 by views
@@ -44,7 +53,7 @@ export async function GET(request: NextRequest) {
         youtubeId: videos.youtubeId,
       })
       .from(videos)
-      .where(excludeFilter)
+      .where(where)
       .orderBy(desc(videos.views))
       .limit(15)
       .all();
@@ -59,7 +68,7 @@ export async function GET(request: NextRequest) {
       })
       .from(videos)
       .innerJoin(events, eq(videos.eventId, events.id))
-      .where(excludeFilter)
+      .where(where)
       .groupBy(events.name)
       .orderBy(desc(sql`avg(${videos.views})`))
       .all();
@@ -79,7 +88,7 @@ export async function GET(request: NextRequest) {
       })
       .from(statsHistory)
       .innerJoin(videos, eq(statsHistory.videoId, videos.id))
-      .where(excludeFilter ? and(excludeFilter, dateFilter) : dateFilter)
+      .where(and(where, dateFilter))
       .groupBy(statsHistory.recordedAt)
       .orderBy(statsHistory.recordedAt)
       .all();
@@ -102,7 +111,7 @@ export async function GET(request: NextRequest) {
     const allVideos = await db
       .select({ id: videos.id, title: videos.title, views: videos.views })
       .from(videos)
-      .where(excludeFilter)
+      .where(where)
       .orderBy(desc(videos.views))
       .all();
 

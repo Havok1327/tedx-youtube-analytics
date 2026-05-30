@@ -6,6 +6,7 @@ import { TopPerformersChart } from "@/components/dashboard/top-performers-chart"
 import { GrowthChart } from "@/components/dashboard/growth-chart";
 import { EventComparisonChart } from "@/components/dashboard/event-comparison-chart";
 import { Milestones } from "@/components/dashboard/milestones";
+import { FormatFilter, useFormatFilter, buildFormatsParam } from "@/components/format-filter";
 import Link from "next/link";
 
 interface OverviewData {
@@ -26,10 +27,19 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [includeExcluded, setIncludeExcluded] = useState(false);
   const [lastRefreshAt, setLastRefreshAt] = useState<string | null>(null);
+  const { formats, setFormats, hydrated } = useFormatFilter();
 
-  const fetchData = async (incExcluded: boolean) => {
+  const fetchData = async (incExcluded: boolean, currentFormats: typeof formats) => {
     try {
-      const url = incExcluded ? "/api/stats/overview?includeExcluded=true" : "/api/stats/overview";
+      const params = new URLSearchParams();
+      if (incExcluded) params.set("includeExcluded", "true");
+      const fp = buildFormatsParam(currentFormats);
+      if (fp) {
+        const [k, v] = fp.split("=");
+        params.set(k, v);
+      }
+      const qs = params.toString();
+      const url = qs ? `/api/stats/overview?${qs}` : "/api/stats/overview";
       const res = await fetch(url);
       if (res.ok) {
         setData(await res.json());
@@ -42,8 +52,12 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    fetchData(includeExcluded);
-  }, [includeExcluded]);
+    // Wait for localStorage hydration so we don't fire a wasted initial
+    // fetch with default formats and then immediately re-fetch with the
+    // restored selection.
+    if (!hydrated) return;
+    fetchData(includeExcluded, formats);
+  }, [includeExcluded, formats, hydrated]);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -75,9 +89,10 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <FormatFilter formats={formats} onChange={setFormats} />
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
             <input
               type="checkbox"

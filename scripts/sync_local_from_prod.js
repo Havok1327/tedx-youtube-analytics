@@ -54,7 +54,7 @@ const TABLES = [
   { name: "speakers",          cols: ["id", "first_name", "last_name"] },
   { name: "app_settings",      cols: ["key", "value"] },
   { name: "categories",        cols: ["id", "slug", "name", "description", "related_themes"] },
-  { name: "videos",            cols: ["id", "youtube_id", "url", "title", "published_at", "views", "likes", "last_updated", "event_id", "exclude_from_charts"] },
+  { name: "videos",            cols: ["id", "youtube_id", "url", "title", "published_at", "views", "likes", "last_updated", "event_id", "exclude_from_charts", "format"] },
   { name: "video_speakers",    cols: ["video_id", "speaker_id"] },
   { name: "transcripts",       cols: ["id", "video_id", "language", "is_generated", "word_count", "full_text", "entries", "fetched_at"] },
   { name: "video_summaries",   cols: ["id", "video_id", "summary", "themes", "key_quotes", "tone", "summarized_at"] },
