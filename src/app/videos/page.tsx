@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { VideosTable } from "@/components/videos-table";
 import { Button } from "@/components/ui/button";
+import { FormatFilter, useFormatFilter, buildFormatsParam } from "@/components/format-filter";
 
 interface Video {
   id: number;
@@ -27,10 +28,19 @@ export default function VideosPage() {
   const [loading, setLoading] = useState(true);
   const [includeExcluded, setIncludeExcluded] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const { formats, setFormats, hydrated } = useFormatFilter();
 
   const fetchVideos = useCallback(() => {
     setLoading(true);
-    const videosUrl = includeExcluded ? "/api/videos?includeExcluded=true" : "/api/videos";
+    const params = new URLSearchParams();
+    if (includeExcluded) params.set("includeExcluded", "true");
+    const fp = buildFormatsParam(formats);
+    if (fp) {
+      const [k, v] = fp.split("=");
+      if (k && v) params.set(k, v);
+    }
+    const qs = params.toString();
+    const videosUrl = qs ? `/api/videos?${qs}` : "/api/videos";
     Promise.all([
       fetch(videosUrl).then((r) => r.ok ? r.json() : []),
       fetch("/api/events").then((r) => r.ok ? r.json() : []),
@@ -42,11 +52,12 @@ export default function VideosPage() {
     }).finally(() => {
       setLoading(false);
     });
-  }, [includeExcluded]);
+  }, [includeExcluded, formats]);
 
   useEffect(() => {
+    if (!hydrated) return;
     fetchVideos();
-  }, [fetchVideos]);
+  }, [fetchVideos, hydrated]);
 
   const excludedCount = videos.filter((v) => v.excludeFromCharts).length;
 
@@ -83,9 +94,10 @@ export default function VideosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-3xl font-bold">Videos</h1>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <FormatFilter formats={formats} onChange={setFormats} />
           {includeExcluded && excludedCount > 0 && (
             <Button
               variant="outline"

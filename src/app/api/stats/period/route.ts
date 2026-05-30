@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { videos, statsHistory, events, videoSpeakers, speakers } from "@/db/schema";
-import { eq, desc, ne } from "drizzle-orm";
+import { and, eq, desc, ne, inArray } from "drizzle-orm";
+import { parseFormatsParam, isAllFormatsSelected } from "@/lib/format-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +13,12 @@ export async function GET(request: Request) {
     const toParam = searchParams.get("to");
     const includeExcluded = searchParams.get("includeExcluded") === "true";
     const excludeFilter = includeExcluded ? undefined : ne(videos.excludeFromCharts, 1);
+    const formats = parseFormatsParam(searchParams.get("formats"));
+    const formatFilter = isAllFormatsSelected(formats) ? undefined : inArray(videos.format, formats);
+    const where = and(excludeFilter, formatFilter);
 
     const allHistory = await db.select().from(statsHistory).all();
-    const allVideos = await db.select().from(videos).where(excludeFilter).all();
+    const allVideos = await db.select().from(videos).where(where).all();
 
     // Get unique dates sorted descending
     const dateSet = new Set<string>();

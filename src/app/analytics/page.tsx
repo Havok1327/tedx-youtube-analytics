@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { FormatFilter, useFormatFilter, buildFormatsParam, type VideoFormat } from "@/components/format-filter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -118,19 +119,18 @@ function formatDate(d: string) {
 }
 
 // ─── Event Trends ───────────────────────────────────────
-function EventTrends({ includeExcluded }: { includeExcluded: boolean }) {
+function EventTrends({ includeExcluded, formats }: { includeExcluded: boolean; formats: VideoFormat[] }) {
   const [data, setData] = useState<{ chartData: Record<string, string | number>[]; eventNames: string[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    const url = includeExcluded ? "/api/stats/events?includeExcluded=true" : "/api/stats/events";
-    fetch(url)
+    fetch(withParams("/api/stats/events", includeExcluded, formats))
       .then((r) => { if (!r.ok) throw new Error("Failed"); return r.json(); })
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [includeExcluded]);
+  }, [includeExcluded, formats]);
 
   if (loading) return <p className="text-muted-foreground py-8 text-center">Loading event trends...</p>;
   if (!data || data.chartData.length === 0) return <p className="text-muted-foreground py-8 text-center">No trend data yet. This chart builds up over time as the weekly refresh creates snapshots. Run a manual refresh to add a data point.</p>;
@@ -172,15 +172,14 @@ interface EventScore {
   bestVideoViews: number;
 }
 
-function EventScorecard({ includeExcluded }: { includeExcluded: boolean }) {
+function EventScorecard({ includeExcluded, formats }: { includeExcluded: boolean; formats: VideoFormat[] }) {
   const [data, setData] = useState<EventScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<"totalViews" | "videoCount" | "avgViews" | "avgEngagement">("totalViews");
 
   useEffect(() => {
     setLoading(true);
-    const url = includeExcluded ? "/api/videos?includeExcluded=true" : "/api/videos";
-    fetch(url)
+    fetch(withParams("/api/videos", includeExcluded, formats))
       .then((r) => r.json())
       .then((videos: { views: number | null; likes: number | null; title: string | null; eventName: string | null }[]) => {
         const eventMap = new Map<string, { videoCount: number; totalViews: number; totalLikes: number; bestVideo: string; bestVideoViews: number }>();
@@ -214,7 +213,7 @@ function EventScorecard({ includeExcluded }: { includeExcluded: boolean }) {
         setData(result);
       })
       .finally(() => setLoading(false));
-  }, [includeExcluded]);
+  }, [includeExcluded, formats]);
 
   if (loading) return <p className="text-muted-foreground py-8 text-center">Loading event scorecard...</p>;
   if (data.length === 0) return <p className="text-muted-foreground py-8 text-center">No event data available</p>;
@@ -279,7 +278,7 @@ function EventScorecard({ includeExcluded }: { includeExcluded: boolean }) {
 // ─── Speaker Deep Dive ──────────────────────────────────
 interface SpeakerOption { id: number; firstName: string; lastName: string; videoCount: number }
 
-function SpeakerDeepDive() {
+function SpeakerDeepDive({ formats }: { formats: VideoFormat[] }) {
   const [speakerList, setSpeakerList] = useState<SpeakerOption[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [speakerData, setSpeakerData] = useState<{
@@ -294,8 +293,8 @@ function SpeakerDeepDive() {
   const [chartTo, setChartTo] = useState("");
 
   useEffect(() => {
-    fetch("/api/stats/speakers").then((r) => r.json()).then(setSpeakerList);
-  }, []);
+    fetch(withParams("/api/stats/speakers", false, formats)).then((r) => r.json()).then(setSpeakerList);
+  }, [formats]);
 
   const filteredSpeakers = useMemo(() => {
     if (!search.trim()) return speakerList;
@@ -310,7 +309,8 @@ function SpeakerDeepDive() {
     setLoading(true);
     setSpeakerData(null);
     try {
-      const res = await fetch(`/api/stats/speakers?speakerId=${id}`);
+      const extra = new URLSearchParams({ speakerId: id });
+      const res = await fetch(withParams("/api/stats/speakers", false, formats, extra));
       if (res.ok) setSpeakerData(await res.json());
     } finally {
       setLoading(false);
@@ -409,7 +409,7 @@ function SpeakerDeepDive() {
 }
 
 // ─── Video Comparison ───────────────────────────────────
-function VideoComparison({ includeExcluded }: { includeExcluded: boolean }) {
+function VideoComparison({ includeExcluded, formats }: { includeExcluded: boolean; formats: VideoFormat[] }) {
   const [allVideos, setAllVideos] = useState<{ id: number; title: string; views: number; eventName: string | null; speakers: { firstName: string; lastName: string }[] }[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [compData, setCompData] = useState<{ chartData: Record<string, string | number>[]; videoNames: string[] } | null>(null);
@@ -418,9 +418,8 @@ function VideoComparison({ includeExcluded }: { includeExcluded: boolean }) {
   const [eventFilter, setEventFilter] = useState<string>("all");
 
   useEffect(() => {
-    const url = includeExcluded ? "/api/videos?includeExcluded=true" : "/api/videos";
-    fetch(url).then((r) => r.json()).then(setAllVideos);
-  }, [includeExcluded]);
+    fetch(withParams("/api/videos", includeExcluded, formats)).then((r) => r.json()).then(setAllVideos);
+  }, [includeExcluded, formats]);
 
   const eventNames = useMemo(() => {
     const names = new Set<string>();
@@ -550,7 +549,7 @@ interface PeriodVideo {
   weekGainPct: number | null; monthGainPct: number | null;
 }
 
-function PeriodReports({ includeExcluded }: { includeExcluded: boolean }) {
+function PeriodReports({ includeExcluded, formats }: { includeExcluded: boolean; formats: VideoFormat[] }) {
   const [data, setData] = useState<{ latestDate: string; weekAgoDate: string; monthAgoDate: string; videos: PeriodVideo[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<"weekGain" | "monthGain" | "weekGainPct" | "monthGainPct">("weekGain");
@@ -559,17 +558,15 @@ function PeriodReports({ includeExcluded }: { includeExcluded: boolean }) {
 
   const fetchData = useCallback((from: string, to: string) => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (from) params.set("from", from);
-    if (to) params.set("to", to);
-    if (includeExcluded) params.set("includeExcluded", "true");
-    const qs = params.toString();
-    fetch(`/api/stats/period${qs ? `?${qs}` : ""}`)
+    const extra = new URLSearchParams();
+    if (from) extra.set("from", from);
+    if (to) extra.set("to", to);
+    fetch(withParams("/api/stats/period", includeExcluded, formats, extra))
       .then((r) => { if (!r.ok) throw new Error("Failed"); return r.json(); })
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [includeExcluded]);
+  }, [includeExcluded, formats]);
 
   useEffect(() => {
     fetchData(dateFrom, dateTo);
@@ -676,15 +673,14 @@ interface LeaderboardSpeaker {
   topVideo: string;
 }
 
-function SpeakerLeaderboard({ includeExcluded }: { includeExcluded: boolean }) {
+function SpeakerLeaderboard({ includeExcluded, formats }: { includeExcluded: boolean; formats: VideoFormat[] }) {
   const [data, setData] = useState<LeaderboardSpeaker[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<"totalViews" | "videoCount" | "avgViewsPerDay" | "totalLikes">("totalViews");
 
   useEffect(() => {
     setLoading(true);
-    const url = includeExcluded ? "/api/videos?includeExcluded=true" : "/api/videos";
-    fetch(url)
+    fetch(withParams("/api/videos", includeExcluded, formats))
       .then((r) => r.json())
       .then((videos: { views: number | null; likes: number | null; title: string | null; publishedAt: string | null; speakers: { firstName: string; lastName: string }[] }[]) => {
         const speakerMap = new Map<string, { videoCount: number; totalViews: number; totalLikes: number; totalVpd: number; topVideo: string; topViews: number }>();
@@ -722,7 +718,7 @@ function SpeakerLeaderboard({ includeExcluded }: { includeExcluded: boolean }) {
         setData(result);
       })
       .finally(() => setLoading(false));
-  }, [includeExcluded]);
+  }, [includeExcluded, formats]);
 
   if (loading) return <p className="text-muted-foreground py-8 text-center">Loading speaker leaderboard...</p>;
   if (data.length === 0) return <p className="text-muted-foreground py-8 text-center">No speaker data available</p>;
@@ -783,14 +779,13 @@ function SpeakerLeaderboard({ includeExcluded }: { includeExcluded: boolean }) {
 }
 
 // ─── Views by Publish Year ──────────────────────────────
-function ViewsByYear({ includeExcluded }: { includeExcluded: boolean }) {
+function ViewsByYear({ includeExcluded, formats }: { includeExcluded: boolean; formats: VideoFormat[] }) {
   const [data, setData] = useState<{ year: string; totalViews: number; totalLikes: number; videoCount: number; avgViews: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    const url = includeExcluded ? "/api/videos?includeExcluded=true" : "/api/videos";
-    fetch(url)
+    fetch(withParams("/api/videos", includeExcluded, formats))
       .then((r) => r.json())
       .then((videos: { views: number | null; likes: number | null; publishedAt: string | null }[]) => {
         const yearMap = new Map<string, { totalViews: number; totalLikes: number; videoCount: number }>();
@@ -818,7 +813,7 @@ function ViewsByYear({ includeExcluded }: { includeExcluded: boolean }) {
         setData(result);
       })
       .finally(() => setLoading(false));
-  }, [includeExcluded]);
+  }, [includeExcluded, formats]);
 
   if (loading) return <p className="text-muted-foreground py-8 text-center">Loading views by year...</p>;
   if (data.length === 0) return <p className="text-muted-foreground py-8 text-center">No data available</p>;
@@ -905,19 +900,18 @@ interface WeeklyRow {
   weeklyGain: number | null;
 }
 
-function WeeklyReport({ includeExcluded }: { includeExcluded: boolean }) {
+function WeeklyReport({ includeExcluded, formats }: { includeExcluded: boolean; formats: VideoFormat[] }) {
   const [rawData, setRawData] = useState<WeeklyRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    const url = includeExcluded ? "/api/stats/weekly?includeExcluded=true" : "/api/stats/weekly";
-    fetch(url)
+    fetch(withParams("/api/stats/weekly", includeExcluded, formats))
       .then((r) => { if (!r.ok) throw new Error("Failed"); return r.json(); })
       .then(setRawData)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [includeExcluded]);
+  }, [includeExcluded, formats]);
 
   // Group by Sun–Sat calendar week, compute gain from consecutive week totals
   const weeks = useMemo(() => {
@@ -1066,23 +1060,42 @@ function WeeklyReport({ includeExcluded }: { includeExcluded: boolean }) {
   );
 }
 
+// ─── URL helper ─────────────────────────────────────────
+// Shared by every component below — composes the includeExcluded and
+// formats parameters into a single URL.
+function withParams(base: string, includeExcluded: boolean, formats: VideoFormat[], extra?: URLSearchParams): string {
+  const params = extra ? new URLSearchParams(extra) : new URLSearchParams();
+  if (includeExcluded) params.set("includeExcluded", "true");
+  const fp = buildFormatsParam(formats);
+  if (fp) {
+    const [k, v] = fp.split("=");
+    if (k && v) params.set(k, v);
+  }
+  const qs = params.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
 // ─── Main Page ──────────────────────────────────────────
 export default function AnalyticsPage() {
   const [includeExcluded, setIncludeExcluded] = useState(false);
+  const { formats, setFormats } = useFormatFilter();
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-3xl font-bold">Analytics</h1>
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={includeExcluded}
-            onChange={(e) => setIncludeExcluded(e.target.checked)}
-            className="h-4 w-4"
-          />
-          Show excluded videos
-        </label>
+        <div className="flex items-center gap-3 flex-wrap">
+          <FormatFilter formats={formats} onChange={setFormats} />
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={includeExcluded}
+              onChange={(e) => setIncludeExcluded(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Show excluded videos
+          </label>
+        </div>
       </div>
       <Tabs defaultValue="scorecard">
         <TabsList className="flex-wrap h-auto gap-1">
@@ -1096,28 +1109,28 @@ export default function AnalyticsPage() {
           <TabsTrigger value="weekly">Weekly Report</TabsTrigger>
         </TabsList>
         <TabsContent value="scorecard" className="mt-4">
-          <EventScorecard includeExcluded={includeExcluded} />
+          <EventScorecard includeExcluded={includeExcluded} formats={formats} />
         </TabsContent>
         <TabsContent value="leaderboard" className="mt-4">
-          <SpeakerLeaderboard includeExcluded={includeExcluded} />
+          <SpeakerLeaderboard includeExcluded={includeExcluded} formats={formats} />
         </TabsContent>
         <TabsContent value="speakers" className="mt-4">
-          <SpeakerDeepDive />
+          <SpeakerDeepDive formats={formats} />
         </TabsContent>
         <TabsContent value="compare" className="mt-4">
-          <VideoComparison includeExcluded={includeExcluded} />
+          <VideoComparison includeExcluded={includeExcluded} formats={formats} />
         </TabsContent>
         <TabsContent value="periods" className="mt-4">
-          <PeriodReports includeExcluded={includeExcluded} />
+          <PeriodReports includeExcluded={includeExcluded} formats={formats} />
         </TabsContent>
         <TabsContent value="yearly" className="mt-4">
-          <ViewsByYear includeExcluded={includeExcluded} />
+          <ViewsByYear includeExcluded={includeExcluded} formats={formats} />
         </TabsContent>
         <TabsContent value="events" className="mt-4">
-          <EventTrends includeExcluded={includeExcluded} />
+          <EventTrends includeExcluded={includeExcluded} formats={formats} />
         </TabsContent>
         <TabsContent value="weekly" className="mt-4">
-          <WeeklyReport includeExcluded={includeExcluded} />
+          <WeeklyReport includeExcluded={includeExcluded} formats={formats} />
         </TabsContent>
       </Tabs>
     </div>

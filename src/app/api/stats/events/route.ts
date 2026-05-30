@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { events, videos, statsHistory } from "@/db/schema";
-import { eq, ne } from "drizzle-orm";
+import { and, eq, ne, inArray } from "drizzle-orm";
+import { parseFormatsParam, isAllFormatsSelected } from "@/lib/format-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,12 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const includeExcluded = searchParams.get("includeExcluded") === "true";
     const excludeFilter = includeExcluded ? undefined : ne(videos.excludeFromCharts, 1);
+    const formats = parseFormatsParam(searchParams.get("formats"));
+    const formatFilter = isAllFormatsSelected(formats) ? undefined : inArray(videos.format, formats);
+    const where = and(excludeFilter, formatFilter);
 
     const allEvents = await db.select().from(events).all();
-    const allVideos = await db.select().from(videos).where(excludeFilter).all();
+    const allVideos = await db.select().from(videos).where(where).all();
     const allHistory = await db.select().from(statsHistory).all();
 
     // Map video IDs to event IDs

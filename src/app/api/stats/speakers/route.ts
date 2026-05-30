@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { speakers, videos, videoSpeakers, statsHistory } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
+import { parseFormatsParam, isAllFormatsSelected } from "@/lib/format-filter";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const speakerId = request.nextUrl.searchParams.get("speakerId");
+  const formats = parseFormatsParam(request.nextUrl.searchParams.get("formats"));
+  const formatFilter = isAllFormatsSelected(formats) ? undefined : inArray(videos.format, formats);
 
   try {
-    // If no speakerId, return list of speakers with video counts
+    // If no speakerId, return list of speakers with video counts.
+    // Counts respect the format filter — so "interviews only" gives
+    // counts of each speaker's interview appearances.
     if (!speakerId) {
       const allSpeakers = await db.select().from(speakers).all();
-      const allVS = await db.select().from(videoSpeakers).all();
+
+      // Join video_speakers → videos so we can apply the format filter
+      // to the count, then aggregate per speaker.
+      const vsRows = await db
+        .select({ speakerId: videoSpeakers.speakerId, videoId: videoSpeakers.videoId })
+        .from(videoSpeakers)
+        .innerJoin(videos, eq(videoSpeakers.videoId, videos.id))
+        .where(formatFilter)
+        .all();
 
       const videoCounts = new Map<number, number>();
-      for (const vs of allVS) {
+      for (const vs of vsRows) {
         videoCounts.set(vs.speakerId, (videoCounts.get(vs.speakerId) || 0) + 1);
       }
 
@@ -41,7 +54,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Speaker not found" }, { status: 404 });
     }
 
-    // Get their videos
+    // Get their videos (format filter applied — when "talks only" is
+    // selected and a speaker appears in both a talk and an interview,
+    // only the talk shows up here, matching the active filter).
     const speakerVideos = await db
       .select({
         videoId: videoSpeakers.videoId,
@@ -51,7 +66,7 @@ export async function GET(request: NextRequest) {
       })
       .from(videoSpeakers)
       .innerJoin(videos, eq(videoSpeakers.videoId, videos.id))
-      .where(eq(videoSpeakers.speakerId, id))
+      .where(and(eq(videoSpeakers.speakerId, id), formatFilter))
       .all();
 
     const videoIds = speakerVideos.map((v) => v.videoId);
