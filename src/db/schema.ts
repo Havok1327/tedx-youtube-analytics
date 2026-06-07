@@ -134,3 +134,35 @@ export const videoKeyMoments = sqliteTable("video_key_moments", {
   endTime: real("end_time").notNull(),
   generatedAt: text("generated_at").notNull(),
 });
+
+// ─── Curated Collections ─────────────────────────────────────────────
+// Hand-picked, branded sets of videos exported as standalone Squarespace
+// pages for marketing / partner collabs (e.g. "Health & Wellness" for a
+// St. Louis Magazine series). Membership is a FROZEN snapshot — the filter
+// tools in the builder UI only help gather candidates; the saved list does
+// not change when new videos get tagged. Re-save in the UI to refresh.
+
+export const collections = sqliteTable("collections", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  slug: text("slug").notNull().unique(), // URL-friendly id used in ?collection=<slug>
+  title: text("title").notNull(), // page heading, e.g. "Health & Wellness"
+  intro: text("intro"), // optional sponsor/partnership line under the title
+  excludeEntertainment: integer("exclude_entertainment").default(1).notNull(),
+  published: integer("published").default(0).notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const collectionVideos = sqliteTable(
+  "collection_videos",
+  {
+    collectionId: integer("collection_id")
+      .notNull()
+      .references(() => collections.id, { onDelete: "cascade" }),
+    videoId: integer("video_id")
+      .notNull()
+      .references(() => videos.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").default(0).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.collectionId, table.videoId] })]
+);

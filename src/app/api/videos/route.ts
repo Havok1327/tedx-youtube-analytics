@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { videos, events, speakers, videoSpeakers } from "@/db/schema";
+import {
+  videos,
+  events,
+  speakers,
+  videoSpeakers,
+  videoCategories,
+  categories,
+  videoSummaries,
+} from "@/db/schema";
 import { and, eq, desc, ne, sql, inArray } from "drizzle-orm";
 import { parseFormatsParam, isAllFormatsSelected } from "@/lib/format-filter";
 
@@ -55,6 +63,49 @@ export async function GET(request: NextRequest) {
       speakersByVideo.set(vs.videoId, list);
     }
 
+    // Opt-in facet data for the collection builder's video picker:
+    // each video's category names (primary first) and its themes.
+    const withFacets = searchParams.get("facets") === "1";
+    const categoriesByVideo = new Map<number, string[]>();
+    const themesByVideo = new Map<number, string[]>();
+    if (withFacets) {
+      const catRows = await db
+        .select({
+          videoId: videoCategories.videoId,
+          name: categories.name,
+          isPrimary: videoCategories.isPrimary,
+        })
+        .from(videoCategories)
+        .innerJoin(categories, eq(categories.id, videoCategories.categoryId))
+        .all();
+      // Primary category sorts to the front of each video's list.
+      catRows.sort((a, b) => b.isPrimary - a.isPrimary);
+      for (const c of catRows) {
+        const list = categoriesByVideo.get(c.videoId) || [];
+        list.push(c.name);
+        categoriesByVideo.set(c.videoId, list);
+      }
+
+      const sumRows = await db
+        .select({ videoId: videoSummaries.videoId, themes: videoSummaries.themes })
+        .from(videoSummaries)
+        .all();
+      for (const s of sumRows) {
+        if (!s.themes) continue;
+        try {
+          const parsed = JSON.parse(s.themes);
+          if (Array.isArray(parsed)) {
+            themesByVideo.set(
+              s.videoId,
+              parsed.map((t) => String(t)).filter(Boolean)
+            );
+          }
+        } catch {
+          // malformed themes JSON — skip
+        }
+      }
+    }
+
     const result = allVideos.map((v) => {
       const ageDays = v.publishedAt
         ? Math.max(1, Math.floor((Date.now() - new Date(v.publishedAt).getTime()) / 86400000))
@@ -65,6 +116,12 @@ export async function GET(request: NextRequest) {
         speakers: speakersByVideo.get(v.id) || [],
         ageInDays: ageDays,
         viewsPerDay: ageDays && v.views ? Math.round((v.views / ageDays) * 10) / 10 : null,
+        ...(withFacets
+          ? {
+              categories: categoriesByVideo.get(v.id) || [],
+              themes: themesByVideo.get(v.id) || [],
+            }
+          : {}),
       };
     });
 

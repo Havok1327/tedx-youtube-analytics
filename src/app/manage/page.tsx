@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatSpeakerName } from "@/lib/speaker-name";
+import { CollectionsManager } from "@/components/collections-manager";
 
 interface Event {
   id: number;
@@ -447,6 +448,7 @@ export default function ManagePage() {
         <TabsList>
           <TabsTrigger value="pipeline">Data & Pipeline</TabsTrigger>
           <TabsTrigger value="videos">Videos</TabsTrigger>
+          <TabsTrigger value="collections">Collections</TabsTrigger>
           <TabsTrigger value="entities">Events & Speakers</TabsTrigger>
         </TabsList>
 
@@ -554,6 +556,26 @@ export default function ManagePage() {
             </CardContent>
           </Card>
 
+          {/* Squarespace HTML Export */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Squarespace Video Grid</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Generate a self-contained HTML video grid you can paste into a Squarespace Code Block. Every non-excluded video in the tracker, grouped by event (newest events first), with an inline lightbox player so visitors never leave Squarespace. Re-generate whenever you add or remove videos.
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={handleGenerateSquarespace} disabled={generatingSqs}>
+                  {generatingSqs ? "Generating..." : "Generate Squarespace HTML"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Re-generate any time you add new videos — Squarespace just needs a fresh paste.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* AI Categorization Pipeline */}
           <Card>
             <CardHeader>
@@ -625,25 +647,6 @@ export default function ManagePage() {
             </CardContent>
           </Card>
 
-          {/* Squarespace HTML Export */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Squarespace Video Grid</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Generate a self-contained HTML video grid you can paste into a Squarespace Code Block. Every non-excluded video in the tracker, grouped by event (newest events first), with an inline lightbox player so visitors never leave Squarespace. Re-generate whenever you add or remove videos.
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <Button onClick={handleGenerateSquarespace} disabled={generatingSqs}>
-                  {generatingSqs ? "Generating..." : "Generate Squarespace HTML"}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Re-generate any time you add new videos — Squarespace just needs a fresh paste.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* ── Videos Tab ───────────────────────────────────────── */}
@@ -693,6 +696,11 @@ export default function ManagePage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── Collections Tab ──────────────────────────────────── */}
+        <TabsContent value="collections" className="space-y-6">
+          <CollectionsManager />
         </TabsContent>
 
         {/* ── Events & Speakers Tab ────────────────────────────── */}

@@ -1,7 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { videos, events, speakers, videoSpeakers } from "@/db/schema";
-import { eq, ne, desc } from "drizzle-orm";
+import {
+  videos,
+  events,
+  speakers,
+  videoSpeakers,
+  videoCategories,
+  categories,
+  collections,
+  collectionVideos,
+} from "@/db/schema";
+import { eq, ne, and, asc, desc } from "drizzle-orm";
 import {
   buildSquarespaceHtml,
   type SquarespaceSection,
@@ -12,6 +21,83 @@ import { formatSpeakerName } from "@/lib/speaker-name";
 export const dynamic = "force-dynamic";
 
 const FALLBACK_EVENT_NAME = "Other";
+
+const normalizeFormat = (f: string | null): SquarespaceVideo["format"] => {
+  if (f === "interview" || f === "entertainment") return f;
+  return "talk";
+};
+
+/**
+ * Build a standalone, branded page for a single curated collection:
+ * just its videos in saved order, flat (no event headers), with the
+ * collection title + intro line and no search box.
+ */
+async function buildCollectionResponse(slug: string) {
+  const collection = await db
+    .select()
+    .from(collections)
+    .where(eq(collections.slug, slug))
+    .get();
+  if (!collection) return null;
+
+  const rows = await db
+    .select({
+      videoId: videos.id,
+      youtubeId: videos.youtubeId,
+      title: videos.title,
+      format: videos.format,
+      sortOrder: collectionVideos.sortOrder,
+      speakerFirst: speakers.firstName,
+      speakerLast: speakers.lastName,
+    })
+    .from(collectionVideos)
+    .innerJoin(videos, eq(videos.id, collectionVideos.videoId))
+    .leftJoin(videoSpeakers, eq(videoSpeakers.videoId, videos.id))
+    .leftJoin(speakers, eq(speakers.id, videoSpeakers.speakerId))
+    .where(eq(collectionVideos.collectionId, collection.id))
+    .orderBy(asc(collectionVideos.sortOrder))
+    .all();
+
+  // Collapse multi-speaker rows; preserve sortOrder.
+  const byVideoId = new Map<number, SquarespaceVideo & { sortOrder: number; format: string }>();
+  for (const r of rows) {
+    if (collection.excludeEntertainment && r.format === "entertainment") continue;
+    const speakerName = formatSpeakerName({ firstName: r.speakerFirst, lastName: r.speakerLast });
+    const existing = byVideoId.get(r.videoId);
+    if (!existing) {
+      byVideoId.set(r.videoId, {
+        id: r.youtubeId,
+        title: r.title || "(Untitled)",
+        speaker: speakerName,
+        format: normalizeFormat(r.format),
+        sortOrder: r.sortOrder,
+      });
+    } else if (speakerName) {
+      existing.speaker = existing.speaker ? `${existing.speaker} & ${speakerName}` : speakerName;
+    }
+  }
+
+  const vids = Array.from(byVideoId.values())
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((v) => ({ id: v.id, title: v.title, speaker: v.speaker, format: v.format }));
+
+  // One unnamed section → flat grid (no event header).
+  const sections: SquarespaceSection[] = [{ name: "", videos: vids }];
+  const html = buildSquarespaceHtml(sections, {
+    pageTitle: collection.title,
+    intro: collection.intro ?? undefined,
+    showSearch: false,
+  });
+
+  return {
+    html,
+    videoCount: vids.length,
+    sectionCount: 1,
+    collection: { slug: collection.slug, title: collection.title, published: collection.published },
+    generatedAt: new Date().toISOString(),
+    byteSize: html.length,
+  };
+}
 
 /**
  * Parse "(Month Year)" out of an event name and return a sortable date.
@@ -46,8 +132,18 @@ function parseEventDate(name: string): Date | null {
   return new Date(Date.UTC(parseInt(m[2], 10), month, 1));
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // ?collection=<slug> → standalone branded page for that curated collection.
+    const slug = request.nextUrl.searchParams.get("collection");
+    if (slug) {
+      const result = await buildCollectionResponse(slug);
+      if (!result) {
+        return NextResponse.json({ error: "Collection not found" }, { status: 404 });
+      }
+      return NextResponse.json(result);
+    }
+
     // Fetch every non-excluded video joined with event + all its speakers.
     // Excluded-from-charts videos are also hidden from the public Squarespace
     // grid — same default as the Dashboard. (When the `format` column lands,
@@ -62,11 +158,17 @@ export async function GET() {
         eventName: events.name,
         speakerFirst: speakers.firstName,
         speakerLast: speakers.lastName,
+        categoryName: categories.name,
       })
       .from(videos)
       .leftJoin(events, eq(videos.eventId, events.id))
       .leftJoin(videoSpeakers, eq(videoSpeakers.videoId, videos.id))
       .leftJoin(speakers, eq(speakers.id, videoSpeakers.speakerId))
+      .leftJoin(
+        videoCategories,
+        and(eq(videoCategories.videoId, videos.id), eq(videoCategories.isPrimary, 1))
+      )
+      .leftJoin(categories, eq(categories.id, videoCategories.categoryId))
       .where(ne(videos.excludeFromCharts, 1))
       .orderBy(desc(videos.publishedAt), desc(videos.id))
       .all();
@@ -79,11 +181,6 @@ export async function GET() {
     };
     const byVideoId = new Map<number, CollectedVideo>();
 
-    const normalizeFormat = (f: string | null): SquarespaceVideo["format"] => {
-      if (f === "interview" || f === "entertainment") return f;
-      return "talk";
-    };
-
     for (const r of rows) {
       const speakerName = formatSpeakerName({ firstName: r.speakerFirst, lastName: r.speakerLast });
       const existing = byVideoId.get(r.videoId);
@@ -94,6 +191,7 @@ export async function GET() {
           title: r.title || "(Untitled)",
           speaker: speakerName,
           format: normalizeFormat(r.format),
+          category: r.categoryName ?? undefined,
           eventName: r.eventName || FALLBACK_EVENT_NAME,
           publishedAt: r.publishedAt,
         });
@@ -113,6 +211,7 @@ export async function GET() {
         title: v.title,
         speaker: v.speaker,
         format: v.format,
+        category: v.category,
       });
     }
 
@@ -140,7 +239,7 @@ export async function GET() {
     unparseable.sort((a, b) => a.name.localeCompare(b.name));
     sections.push(...unparseable);
 
-    const html = buildSquarespaceHtml(sections);
+    const html = buildSquarespaceHtml(sections, { showFacets: true });
     const totalVideos = sections.reduce((n, s) => n + s.videos.length, 0);
 
     return NextResponse.json({

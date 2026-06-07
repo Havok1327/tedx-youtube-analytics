@@ -16,6 +16,7 @@ export interface SquarespaceVideo {
   title: string;
   speaker: string;  // may be empty
   format: "talk" | "interview" | "entertainment";
+  category?: string; // primary category name — drives the faceted nav on the full grid
 }
 
 export interface SquarespaceSection {
@@ -25,6 +26,9 @@ export interface SquarespaceSection {
 
 export interface SquarespaceTemplateOptions {
   pageTitle?: string;            // top-level heading (default: "TEDxStLouis Talks")
+  intro?: string;                // optional line under the title (e.g. sponsor/partnership)
+  showSearch?: boolean;          // show the search box (default true; off for curated pages)
+  showFacets?: boolean;          // show category/format filter chips (default false; on for full grid)
   generatedAt?: string;          // ISO timestamp, defaults to now
 }
 
@@ -33,6 +37,9 @@ export function buildSquarespaceHtml(
   options: SquarespaceTemplateOptions = {}
 ): string {
   const pageTitle = options.pageTitle ?? "TEDxStLouis Talks";
+  const intro = options.intro?.trim() || "";
+  const showSearch = options.showSearch !== false;
+  const showFacets = options.showFacets === true;
   const generatedAt = options.generatedAt ?? new Date().toISOString();
   const dateStr = generatedAt.slice(0, 10);
   const totalVideos = sections.reduce((n, s) => n + s.videos.length, 0);
@@ -43,7 +50,7 @@ export function buildSquarespaceHtml(
       const videoLines = s.videos
         .map(
           (v) =>
-            `      { id: ${JSON.stringify(v.id)}, title: ${JSON.stringify(v.title)}, speaker: ${JSON.stringify(v.speaker)}, format: ${JSON.stringify(v.format)} }`
+            `      { id: ${JSON.stringify(v.id)}, title: ${JSON.stringify(v.title)}, speaker: ${JSON.stringify(v.speaker)}, format: ${JSON.stringify(v.format)}, category: ${JSON.stringify(v.category ?? "")} }`
         )
         .join(",\n");
       return `    {\n      name: ${JSON.stringify(s.name)},\n      videos: [\n${videoLines}\n      ]\n    }`;
@@ -78,6 +85,14 @@ export function buildSquarespaceHtml(
     color: var(--tdxsl-title-color);
     margin: 0 0 1.5rem !important;
     text-align: center;
+  }
+  .tdxsl-page .tdxsl-intro {
+    max-width: 720px;
+    margin: -0.75rem auto 2rem !important;
+    text-align: center;
+    font-size: 1.15rem;
+    line-height: 1.5;
+    color: var(--tdxsl-meta-color);
   }
 
   /* ── Search ───────────────────────────────────────────────────────────── */
@@ -123,6 +138,56 @@ export function buildSquarespaceHtml(
   .tdxsl-page .tdxsl-section[hidden],
   .tdxsl-page .tdxsl-no-results[hidden] {
     display: none !important;
+  }
+
+  /* ── Faceted filter bar (dropdowns) ─────────────────────────────────────── */
+  .tdxsl-page .tdxsl-facets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto 2.25rem;
+  }
+  .tdxsl-page .tdxsl-facet-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .tdxsl-page .tdxsl-facet-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--tdxsl-meta-color);
+  }
+  .tdxsl-page .tdxsl-facet-select {
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: inherit;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 0.45rem 2rem 0.45rem 0.85rem;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    /* simple chevron */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+  }
+  .tdxsl-page .tdxsl-facet-select:focus {
+    outline: none;
+    border-color: var(--tdxsl-accent);
+  }
+
+  /* Primary-category label on each tile */
+  .tdxsl-page .tdxsl-cat {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--tdxsl-accent);
+    margin: 0 0 0.1rem !important;
   }
 
   /* ── Sections ──────────────────────────────────────────────────────────── */
@@ -355,10 +420,16 @@ export function buildSquarespaceHtml(
 
 <div class="tdxsl-page" id="tdxsl-page">
   <h2 class="tdxsl-page-title">${escapeHtml(pageTitle)}</h2>
-  <div class="tdxsl-search">
+  ${intro ? `<p class="tdxsl-intro">${escapeHtml(intro)}</p>` : ""}
+  ${
+    showSearch
+      ? `<div class="tdxsl-search">
     <input type="search" id="tdxsl-search-input" placeholder="Search by title, speaker, or event…" aria-label="Search videos" autocomplete="off">
     <span class="tdxsl-search-count" id="tdxsl-search-count" aria-live="polite"></span>
-  </div>
+  </div>`
+      : ""
+  }
+  ${showFacets ? `<div class="tdxsl-facets" id="tdxsl-facets"></div>` : ""}
   <div id="tdxsl-sections"></div>
   <p class="tdxsl-no-results" id="tdxsl-no-results" hidden>No videos match your search.</p>
 </div>
@@ -387,14 +458,17 @@ ${sectionsJs}
   }
 
   function renderTile(v, eventName) {
-    var haystack = (v.title + " " + (v.speaker || "") + " " + (eventName || "")).toLowerCase();
-    return '<div class="tdxsl-tile-card" data-tdxsl-search="' + escapeHtml(haystack) + '">' +
+    var cat = v.category || "";
+    var haystack = (v.title + " " + (v.speaker || "") + " " + (eventName || "") + " " + cat).toLowerCase();
+    return '<div class="tdxsl-tile-card" data-tdxsl-search="' + escapeHtml(haystack) + '"' +
+        ' data-tdxsl-cat="' + escapeHtml(cat) + '" data-tdxsl-fmt="' + escapeHtml(v.format || "talk") + '">' +
       '<button class="tdxsl-tile" type="button" data-tdxsl-id="' + escapeHtml(v.id) + '" aria-label="Play: ' + escapeHtml(v.title) + '">' +
         '<div class="tdxsl-thumb">' +
           '<img src="https://img.youtube.com/vi/' + encodeURIComponent(v.id) + '/hqdefault.jpg" alt="" loading="lazy">' +
           '<div class="tdxsl-play">' + PLAY_SVG + '</div>' +
         '</div>' +
         '<div class="tdxsl-meta">' +
+          (cat ? '<p class="tdxsl-cat">' + escapeHtml(cat) + '</p>' : '') +
           '<p class="tdxsl-title">' + escapeHtml(v.title) + '</p>' +
           (v.speaker ? '<p class="tdxsl-speaker">' + escapeHtml(v.speaker) + '</p>' : '') +
         '</div>' +
@@ -413,29 +487,90 @@ ${sectionsJs}
     for (var i = 0; i < section.videos.length; i++) tilesHtml += renderTile(section.videos[i], section.name);
     var countLabel = section.videos.length + " " + (section.videos.length === 1 ? "video" : "videos");
     totalVideos += section.videos.length;
+    // A section with no name renders flat — no event header (curated collections).
+    var headerHtml = section.name
+      ? '<h3 class="tdxsl-section-header">' +
+          '<span class="tdxsl-section-name">' + escapeHtml(section.name) + '</span>' +
+          '<span class="tdxsl-section-count">' + countLabel + '</span>' +
+        '</h3>'
+      : '';
     html += '<section class="tdxsl-section">' +
-      '<h3 class="tdxsl-section-header">' +
-        '<span class="tdxsl-section-name">' + escapeHtml(section.name) + '</span>' +
-        '<span class="tdxsl-section-count">' + countLabel + '</span>' +
-      '</h3>' +
+      headerHtml +
       '<div class="tdxsl-grid">' + tilesHtml + '</div>' +
     '</section>';
   }
   sectionsContainer.innerHTML = html;
 
-  // ── Search / filter ─────────────────────────────────────────────────────
+  // ── Search + faceted filter ──────────────────────────────────────────────
   var searchInput = document.getElementById("tdxsl-search-input");
   var searchCount = document.getElementById("tdxsl-search-count");
   var noResults = document.getElementById("tdxsl-no-results");
+  var facetsContainer = document.getElementById("tdxsl-facets");
 
-  function applySearch(q) {
-    q = String(q || "").toLowerCase().trim();
+  function hasOwn(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+  function objKeys(o) {
+    var a = [];
+    for (var k in o) if (hasOwn(o, k)) a.push(k);
+    return a;
+  }
+
+  // Single-select dropdowns keep the bar to one clean line. Empty string = "all".
+  var activeCat = "";
+  var activeFmt = "";
+  var catSelect = null;
+  var fmtSelect = null;
+
+  var FMT_LABELS = { talk: "Talks", interview: "Interviews", entertainment: "Entertainment" };
+  if (facetsContainer) {
+    var catSet = {}, fmtSet = {};
+    for (var fs = 0; fs < TDXSL_SECTIONS.length; fs++) {
+      var fvids = TDXSL_SECTIONS[fs].videos || [];
+      for (var fv = 0; fv < fvids.length; fv++) {
+        if (fvids[fv].category) catSet[fvids[fv].category] = true;
+        fmtSet[fvids[fv].format || "talk"] = true;
+      }
+    }
+    var cats = objKeys(catSet).sort();
+    var fmts = ["talk", "interview", "entertainment"].filter(function (f) { return hasOwn(fmtSet, f); });
+
+    var barHtml = "";
+    if (cats.length) {
+      barHtml += '<label class="tdxsl-facet-field"><span class="tdxsl-facet-label">Topic</span>' +
+        '<select class="tdxsl-facet-select" id="tdxsl-cat-select"><option value="">All topics</option>';
+      for (var ci = 0; ci < cats.length; ci++) {
+        barHtml += '<option value="' + escapeHtml(cats[ci]) + '">' + escapeHtml(cats[ci]) + '</option>';
+      }
+      barHtml += '</select></label>';
+    }
+    // Format dropdown — only worth showing if more than one format is present.
+    if (fmts.length > 1) {
+      barHtml += '<label class="tdxsl-facet-field"><span class="tdxsl-facet-label">Format</span>' +
+        '<select class="tdxsl-facet-select" id="tdxsl-fmt-select"><option value="">All formats</option>';
+      for (var fi = 0; fi < fmts.length; fi++) {
+        barHtml += '<option value="' + escapeHtml(fmts[fi]) + '">' + escapeHtml(FMT_LABELS[fmts[fi]] || fmts[fi]) + '</option>';
+      }
+      barHtml += '</select></label>';
+    }
+    facetsContainer.innerHTML = barHtml;
+    catSelect = document.getElementById("tdxsl-cat-select");
+    fmtSelect = document.getElementById("tdxsl-fmt-select");
+  }
+
+  function applyFilters() {
+    var q = (searchInput ? searchInput.value : "").toLowerCase().trim();
+    var anyFilter = !!q || !!activeCat || !!activeFmt;
     var visibleCount = 0;
     var cards = document.querySelectorAll(".tdxsl-page .tdxsl-tile-card");
     for (var i = 0; i < cards.length; i++) {
-      var hay = cards[i].getAttribute("data-tdxsl-search") || "";
-      var match = !q || hay.indexOf(q) !== -1;
-      cards[i].hidden = !match;
+      var card = cards[i];
+      var hay = card.getAttribute("data-tdxsl-search") || "";
+      var cat = card.getAttribute("data-tdxsl-cat") || "";
+      var fmt = card.getAttribute("data-tdxsl-fmt") || "talk";
+      var qMatch = !q || hay.indexOf(q) !== -1;
+      var catMatch = !activeCat || cat === activeCat;
+      var fmtMatch = !activeFmt || fmt === activeFmt;
+      var match = qMatch && catMatch && fmtMatch;
+      card.hidden = !match;
       if (match) visibleCount++;
     }
     var sections = document.querySelectorAll(".tdxsl-page .tdxsl-section");
@@ -443,24 +578,24 @@ ${sectionsJs}
       var visibleCards = sections[j].querySelectorAll(".tdxsl-tile-card:not([hidden])");
       sections[j].hidden = visibleCards.length === 0;
     }
-    noResults.hidden = visibleCount > 0;
-    if (!q) {
-      searchCount.textContent = "";
-    } else {
-      searchCount.textContent = visibleCount + " of " + totalVideos;
-    }
+    if (noResults) noResults.hidden = visibleCount > 0;
+    if (searchCount) searchCount.textContent = anyFilter ? (visibleCount + " of " + totalVideos) : "";
   }
 
   if (searchInput) {
-    searchInput.addEventListener("input", function (e) {
-      applySearch(e.target.value);
-    });
+    searchInput.addEventListener("input", applyFilters);
     searchInput.addEventListener("keydown", function (e) {
       if (e.key === "Escape" && searchInput.value) {
         searchInput.value = "";
-        applySearch("");
+        applyFilters();
       }
     });
+  }
+  if (catSelect) {
+    catSelect.addEventListener("change", function () { activeCat = catSelect.value; applyFilters(); });
+  }
+  if (fmtSelect) {
+    fmtSelect.addEventListener("change", function () { activeFmt = fmtSelect.value; applyFilters(); });
   }
 
   var modal = document.getElementById("tdxsl-modal");
