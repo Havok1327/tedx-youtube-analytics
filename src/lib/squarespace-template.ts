@@ -29,6 +29,7 @@ export interface SquarespaceTemplateOptions {
   intro?: string;                // optional line under the title (e.g. sponsor/partnership)
   showSearch?: boolean;          // show the search box (default true; off for curated pages)
   showFacets?: boolean;          // show category/format filter chips (default false; on for full grid)
+  libraryUrl?: string;           // if set, renders a "see all talks" CTA linking here (collection pages)
   generatedAt?: string;          // ISO timestamp, defaults to now
 }
 
@@ -40,6 +41,7 @@ export function buildSquarespaceHtml(
   const intro = options.intro?.trim() || "";
   const showSearch = options.showSearch !== false;
   const showFacets = options.showFacets === true;
+  const libraryUrl = options.libraryUrl?.trim() || "";
   const generatedAt = options.generatedAt ?? new Date().toISOString();
   const dateStr = generatedAt.slice(0, 10);
   const totalVideos = sections.reduce((n, s) => n + s.videos.length, 0);
@@ -93,6 +95,27 @@ export function buildSquarespaceHtml(
     font-size: 1.15rem;
     line-height: 1.5;
     color: var(--tdxsl-meta-color);
+  }
+
+  /* "See all talks" CTA at the foot of a collection page */
+  .tdxsl-page .tdxsl-footer {
+    margin-top: 2.5rem;
+    text-align: center;
+  }
+  .tdxsl-page .tdxsl-footer-link {
+    display: inline-block;
+    padding: 0.7rem 1.4rem;
+    border: 2px solid var(--tdxsl-accent);
+    border-radius: 24px;
+    color: var(--tdxsl-accent) !important;
+    font-weight: 600;
+    font-size: 1rem;
+    text-decoration: none !important;
+    transition: background 140ms ease, color 140ms ease;
+  }
+  .tdxsl-page .tdxsl-footer-link:hover {
+    background: var(--tdxsl-accent);
+    color: #fff !important;
   }
 
   /* ── Search ───────────────────────────────────────────────────────────── */
@@ -432,6 +455,11 @@ export function buildSquarespaceHtml(
   ${showFacets ? `<div class="tdxsl-facets" id="tdxsl-facets"></div>` : ""}
   <div id="tdxsl-sections"></div>
   <p class="tdxsl-no-results" id="tdxsl-no-results" hidden>No videos match your search.</p>
+  ${
+    libraryUrl
+      ? `<div class="tdxsl-footer"><a class="tdxsl-footer-link" href="${escapeHtml(libraryUrl)}">Explore all TEDxStLouis talks →</a></div>`
+      : ""
+  }
 </div>
 
 <div class="tdxsl-modal-v2" id="tdxsl-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Video player">

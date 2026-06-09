@@ -22,6 +22,10 @@ export const dynamic = "force-dynamic";
 
 const FALLBACK_EVENT_NAME = "Other";
 
+// Public "all talks" page — collection pages link back here so viewers can
+// browse the full library. Update if the watch page URL ever changes.
+const FULL_LIBRARY_URL = "https://tedxsaintlouis.org/watch-our-talks";
+
 const normalizeFormat = (f: string | null): SquarespaceVideo["format"] => {
   if (f === "interview" || f === "entertainment") return f;
   return "talk";
@@ -87,6 +91,7 @@ async function buildCollectionResponse(slug: string) {
     pageTitle: collection.title,
     intro: collection.intro ?? undefined,
     showSearch: false,
+    libraryUrl: FULL_LIBRARY_URL,
   });
 
   return {

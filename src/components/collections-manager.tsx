@@ -69,6 +69,9 @@ export function CollectionsManager() {
   const [fmtFilter, setFmtFilter] = useState<Set<string>>(new Set());
   const [eventFilter, setEventFilter] = useState("");
 
+  // in-app video preview
+  const [preview, setPreview] = useState<{ id: string; title: string } | null>(null);
+
   // generate-HTML dialog
   const [genOpen, setGenOpen] = useState(false);
   const [genHtml, setGenHtml] = useState<string | null>(null);
@@ -464,7 +467,16 @@ export function CollectionsManager() {
                       className="flex items-start gap-2 rounded-md border p-2 text-sm"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium leading-snug">{v.title}</p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            v.youtubeId && setPreview({ id: v.youtubeId, title: v.title || "" })
+                          }
+                          className="text-left font-medium leading-snug hover:underline"
+                          title="Preview video"
+                        >
+                          {v.title}
+                        </button>
                         <p className="text-xs text-muted-foreground">
                           {speakerLabel(v) || "—"} · {v.eventName || "—"}
                         </p>
@@ -517,7 +529,16 @@ export function CollectionsManager() {
                         {idx + 1}.
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium leading-snug">{v.title}</p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            v.youtubeId && setPreview({ id: v.youtubeId, title: v.title || "" })
+                          }
+                          className="text-left font-medium leading-snug hover:underline"
+                          title="Preview video"
+                        >
+                          {v.title}
+                        </button>
                         <p className="text-xs text-muted-foreground">
                           {speakerLabel(v) || "—"} · {v.eventName || "—"}
                         </p>
@@ -554,6 +575,29 @@ export function CollectionsManager() {
             </CardContent>
           </Card>
         </div>
+
+        {/* In-app video preview */}
+        <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
+          <DialogContent className="sm:!max-w-3xl">
+            <DialogHeader>
+              <DialogTitle className="pr-6 text-base font-medium">{preview?.title}</DialogTitle>
+            </DialogHeader>
+            {preview && (
+              <div
+                className="relative w-full overflow-hidden rounded-md bg-black"
+                style={{ aspectRatio: "16 / 9" }}
+              >
+                <iframe
+                  className="absolute inset-0 h-full w-full"
+                  src={`https://www.youtube.com/embed/${encodeURIComponent(preview.id)}?autoplay=1&rel=0&modestbranding=1`}
+                  title={preview.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
