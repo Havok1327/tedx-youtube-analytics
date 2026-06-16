@@ -40,6 +40,7 @@
 
 ### Key Schema Notes
 - `videos.excludeFromCharts` (integer 0/1) — used across all analytics APIs via `ne(videos.excludeFromCharts, 1)`
+- `videos.excludeFromSquarespace` (integer 0/1, migration 0006) — hides a video from ALL public Squarespace output (main grid + curated collection pages) ONLY. Distinct from `excludeFromCharts`: the video stays fully in the tracker (views, history, listing, analytics). Filtered in the export route via `ne(videos.excludeFromSquarespace, 1)`. Toggle on the video detail page.
 - `statsHistory.recordedAt` is a text field with ISO date strings
 - `transcripts.entries` is a JSON string array of `{text, start, duration}` objects
 - `categories.relatedThemes` and `videoSummaries.themes`/`keyQuotes` are JSON string arrays
@@ -176,6 +177,23 @@ All phases are **incremental** — they skip videos that already have data. Safe
 ---
 
 ## Completed Work History
+
+### Jun 2026 — "Hidden from Website" Flag (migration 0006)
+One-off exec request: hide specific talks from the public website but keep their
+historical views + listing in the tracker.
+- New `videos.excludeFromSquarespace` column (0/1, default 0). Distinct from
+  `excludeFromCharts` — hides from public output only; analytics/history/listing untouched.
+- Export route (`src/app/api/export/squarespace/route.ts`) filters it on BOTH the
+  main grid and curated-collection exports (hidden = never surfaces publicly anywhere,
+  even if hand-picked into a collection).
+- `PUT /api/videos/[id]` accepts the flag; both video GET routes return it.
+- "Hidden from Website" instant-toggle checkbox on the video detail page (amber, beside
+  the red "Excluded from Charts" toggle); "(hidden from site)" tag in the videos list.
+- Verified working in production (toggled live, persisted to prod).
+- **Also fixed**: `scripts/snapshot_prod.js` table list was stale (missing `collections`
+  + `collection_videos` from migration 0005) — prod backups were silently skipping them.
+  Both `snapshot_prod.js` and `sync_local_from_prod.js` hardcode table/column lists, so
+  **every future schema add must update both** or backups/mirrors lose data.
 
 ### May 2026 — Squarespace Video Grid v1 (tag: `squarespace-v1`)
 End-to-end public video grid for Squarespace, sourced live from the tracker.
