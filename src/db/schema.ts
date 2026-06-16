@@ -22,6 +22,11 @@ export const videos = sqliteTable("videos", {
   lastUpdated: text("last_updated"),
   eventId: integer("event_id").references(() => events.id),
   excludeFromCharts: integer("exclude_from_charts").default(0).notNull(),
+  // Hides the video from ALL public Squarespace output (the main grid AND
+  // any curated collection page) while keeping it fully in the tracker —
+  // views, history, listing, and analytics are unaffected. Distinct from
+  // excludeFromCharts, which pulls a video out of analytics too.
+  excludeFromSquarespace: integer("exclude_from_squarespace").default(0).notNull(),
   // Editorial format used for filtering analytics, the AI pipeline, and
   // the public Squarespace grid. Values: 'talk' | 'interview' | 'entertainment'.
   format: text("format").default("talk").notNull(),

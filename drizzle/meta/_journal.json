@@ -43,6 +43,13 @@
       "when": 1780850832076,
       "tag": "0005_gigantic_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1781641808775,
+      "tag": "0006_good_magma",
+      "breakpoints": true
     }
   ]
 }

@@ -33,6 +33,7 @@ interface Video {
   eventId: number | null;
   eventName: string | null;
   excludeFromCharts: number;
+  excludeFromSquarespace: number;
   speakers: { id: number; firstName: string; lastName: string }[];
   ageInDays: number | null;
   viewsPerDay: number | null;
@@ -265,6 +266,7 @@ export function VideosTable({ videos, events }: VideosTableProps) {
                       {video.title || "Untitled"}
                     </Link>
                     {video.excludeFromCharts ? <span className="ml-2 text-xs text-muted-foreground">(excluded)</span> : null}
+                    {video.excludeFromSquarespace ? <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">(hidden from site)</span> : null}
                   </TableCell>
                   <TableCell className="text-right">{(video.views || 0).toLocaleString()}</TableCell>
                   <TableCell className="text-right">{(video.likes || 0).toLocaleString()}</TableCell>

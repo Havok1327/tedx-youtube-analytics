@@ -1,0 +1,1 @@
+ALTER TABLE `videos` ADD `exclude_from_squarespace` integer DEFAULT 0 NOT NULL;

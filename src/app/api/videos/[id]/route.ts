@@ -29,6 +29,7 @@ export async function GET(
         eventId: videos.eventId,
         eventName: events.name,
         excludeFromCharts: videos.excludeFromCharts,
+        excludeFromSquarespace: videos.excludeFromSquarespace,
         format: videos.format,
       })
       .from(videos)
@@ -158,7 +159,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { title, url, eventId, speakerIds, views, likes, publishedAt, excludeFromCharts, format } = body;
+    const { title, url, eventId, speakerIds, views, likes, publishedAt, excludeFromCharts, excludeFromSquarespace, format } = body;
 
     const ALLOWED_FORMATS = ["talk", "interview", "entertainment"];
 
@@ -170,6 +171,7 @@ export async function PUT(
     if (likes !== undefined) updateData.likes = likes;
     if (publishedAt !== undefined) updateData.publishedAt = publishedAt;
     if (excludeFromCharts !== undefined) updateData.excludeFromCharts = excludeFromCharts ? 1 : 0;
+    if (excludeFromSquarespace !== undefined) updateData.excludeFromSquarespace = excludeFromSquarespace ? 1 : 0;
     if (format !== undefined && typeof format === "string" && ALLOWED_FORMATS.includes(format)) {
       updateData.format = format;
     }

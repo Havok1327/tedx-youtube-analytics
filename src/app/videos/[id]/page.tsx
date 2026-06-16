@@ -81,6 +81,7 @@ interface VideoDetail {
   eventId: number | null;
   eventName: string | null;
   excludeFromCharts: number;
+  excludeFromSquarespace: number;
   format: string;
   speakers: { id: number; firstName: string; lastName: string }[];
   history: { id: number; views: number; likes: number; recordedAt: string }[];
@@ -111,6 +112,7 @@ export default function VideoDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const [togglingExclude, setTogglingExclude] = useState(false);
+  const [togglingHide, setTogglingHide] = useState(false);
 
   // Edit dialog state
   const [editOpen, setEditOpen] = useState(false);
@@ -210,6 +212,21 @@ export default function VideoDetailPage() {
     }
   };
 
+  const handleToggleHide = async () => {
+    if (!video) return;
+    setTogglingHide(true);
+    try {
+      const res = await fetch(`/api/videos/${video.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excludeFromSquarespace: video.excludeFromSquarespace ? 0 : 1 }),
+      });
+      if (res.ok) fetchVideo();
+    } finally {
+      setTogglingHide(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!video || !confirm(`Delete "${video.title || "this video"}"? This cannot be undone.`)) return;
     setDeleting(true);
@@ -291,6 +308,15 @@ export default function VideoDetailPage() {
               className="h-4 w-4"
             />
             Excluded from Charts
+          </label>
+          <label className={`flex items-center gap-2 text-sm cursor-pointer select-none px-3 py-1.5 rounded-md border ${video.excludeFromSquarespace ? "border-amber-500/60 text-amber-600 dark:text-amber-400" : "border-transparent text-muted-foreground"} ${togglingHide ? "opacity-50 pointer-events-none" : ""}`}>
+            <input
+              type="checkbox"
+              checked={!!video.excludeFromSquarespace}
+              onChange={handleToggleHide}
+              className="h-4 w-4"
+            />
+            Hidden from Website
           </label>
         </div>
       </div>

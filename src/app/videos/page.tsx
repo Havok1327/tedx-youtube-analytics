@@ -17,6 +17,7 @@ interface Video {
   eventId: number | null;
   eventName: string | null;
   excludeFromCharts: number;
+  excludeFromSquarespace: number;
   speakers: { id: number; firstName: string; lastName: string }[];
   ageInDays: number | null;
   viewsPerDay: number | null;

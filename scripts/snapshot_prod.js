@@ -38,6 +38,7 @@ const TABLES = [
   "videos", "video_speakers",
   "transcripts", "video_summaries", "video_key_moments", "clips", "video_categories",
   "stats_history",
+  "collections", "collection_videos",
 ];
 
 // Use a fixed timestamp derived from process.env rather than Date.now()

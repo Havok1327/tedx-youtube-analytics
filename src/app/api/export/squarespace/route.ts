@@ -58,7 +58,14 @@ async function buildCollectionResponse(slug: string) {
     .innerJoin(videos, eq(videos.id, collectionVideos.videoId))
     .leftJoin(videoSpeakers, eq(videoSpeakers.videoId, videos.id))
     .leftJoin(speakers, eq(speakers.id, videoSpeakers.speakerId))
-    .where(eq(collectionVideos.collectionId, collection.id))
+    .where(
+      and(
+        eq(collectionVideos.collectionId, collection.id),
+        // A video flagged "hidden from website" is dropped from public output
+        // everywhere — even if it was hand-picked into this collection.
+        ne(videos.excludeFromSquarespace, 1)
+      )
+    )
     .orderBy(asc(collectionVideos.sortOrder))
     .all();
 
@@ -149,10 +156,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(result);
     }
 
-    // Fetch every non-excluded video joined with event + all its speakers.
-    // Excluded-from-charts videos are also hidden from the public Squarespace
-    // grid — same default as the Dashboard. (When the `format` column lands,
-    // we'll add format-based filtering here too: talks + interviews only.)
+    // Fetch every public-eligible video joined with event + all its speakers.
+    // Two flags pull a video out of the grid:
+    //  - excludeFromCharts: hidden from analytics AND the public grid (same
+    //    default as the Dashboard).
+    //  - excludeFromSquarespace: hidden from public output only; stays in the
+    //    tracker (views, history, listing, analytics) untouched.
     const rows = await db
       .select({
         videoId: videos.id,
@@ -174,7 +183,7 @@ export async function GET(request: NextRequest) {
         and(eq(videoCategories.videoId, videos.id), eq(videoCategories.isPrimary, 1))
       )
       .leftJoin(categories, eq(categories.id, videoCategories.categoryId))
-      .where(ne(videos.excludeFromCharts, 1))
+      .where(and(ne(videos.excludeFromCharts, 1), ne(videos.excludeFromSquarespace, 1)))
       .orderBy(desc(videos.publishedAt), desc(videos.id))
       .all();
 

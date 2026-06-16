@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
         eventId: videos.eventId,
         eventName: events.name,
         excludeFromCharts: videos.excludeFromCharts,
+        excludeFromSquarespace: videos.excludeFromSquarespace,
         format: videos.format,
       })
       .from(videos)
