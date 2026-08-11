@@ -11,6 +11,7 @@ const navItems = [
   { href: "/categories", label: "Categories" },
   { href: "/montage", label: "Montage" },
   { href: "/manage", label: "Manage" },
+  { href: "/help", label: "Help" },
 ];
 
 export function Nav() {
