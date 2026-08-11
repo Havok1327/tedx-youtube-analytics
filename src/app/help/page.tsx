@@ -89,7 +89,7 @@ const SECTIONS: HelpSection[] = [
         </P>
         <P>
           If you cannot get in, it is because you do not have the password yet, not because your
-          account is missing something. Ask Matt for it once and you are set permanently.
+          account is missing something. Ask the team for it once and you are set permanently.
         </P>
         <Warn title="No audit trail">
           <p>
@@ -427,7 +427,7 @@ export default function HelpPage() {
         <h1 className="mb-2 text-3xl font-bold">Help</h1>
         <p className="text-muted-foreground">
           How to add talks, share collections, and read the rest of the tracker. If something here
-          does not match what you see on screen, tell Matt.
+          does not match what you see on screen, let the team know.
         </p>
       </div>
 

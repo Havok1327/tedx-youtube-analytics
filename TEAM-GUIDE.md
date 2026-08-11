@@ -21,7 +21,7 @@ password. There is no per-person login, no roles, and no permissions to grant. I
 can get past the login screen, you can do everything in this guide.
 
 If you cannot get in, it is because you do not have the password yet, not because your
-account is missing something. Ask Matt for it once and you are set permanently — your
+account is missing something. Ask the team for it once and you are set permanently — your
 browser stays logged in.
 
 > ⚠ **No audit trail.** Because everyone shares one password, the tracker cannot tell
