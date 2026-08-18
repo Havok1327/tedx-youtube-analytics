@@ -711,6 +711,14 @@ export default function ManagePage() {
               <CardTitle>Events ({events.length})</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Type the event name in the box, then click <strong>Add Event</strong>. The
+                button stays greyed out until the box has something in it. Name events{" "}
+                <code className="text-xs bg-muted px-1 py-0.5 rounded">Title (Month YYYY)</code>,
+                for example <em>Future Focus (September 2025)</em>. The public website sorts its
+                sections by that date, so an event named without it drops to the bottom of the
+                page. Click any event below to rename or delete it.
+              </p>
               <div className="flex gap-2">
                 <Input
                   placeholder="New event name..."
@@ -816,6 +824,13 @@ export default function ManagePage() {
               <CardTitle>Speakers ({speakers.length})</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Type a name in the boxes, then click <strong>Add Speaker</strong>. The button
+                stays greyed out until at least one box has something in it.{" "}
+                <strong>Last name is optional</strong>: for a band, group, or one-name performer,
+                put the whole name in First name and leave Last name empty. Click any speaker
+                below to rename or delete them.
+              </p>
               <div className="flex gap-2">
                 <Input
                   placeholder="First name"
